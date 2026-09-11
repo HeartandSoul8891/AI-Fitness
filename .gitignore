@@ -1,0 +1,32 @@
+# Environment & Python Caches
+venv
+__pycache__/
+*.pyc
+
+# Target Directories (Ignores all contents inside these folders)
+runs/
+datasets/
+models/
+Training/
+
+# Specific File Types (Global filters)
+*.xml
+*.onnx
+*.jpg
+*.png
+*.jpeg
+*.log
+*.h5
+*.pt
+*.ini
+*.json
+*.txt
+*.csv
+*.lock
+*.yaml
+
+# Ignored Files (Specific to this project)
+*dev.bat
+# -> laucher for development
+*project_structure.txt
+# -> project structure file and development notes
