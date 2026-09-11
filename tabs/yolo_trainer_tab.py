@@ -77,6 +77,7 @@ def yolo_trainer_tab():
         )
 
     st.markdown("---")
+    
 
     # 3. Advanced Hyperparameters
     st.subheader("3. Advanced Hyperparameters")
