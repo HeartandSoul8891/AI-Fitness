@@ -2,7 +2,7 @@ import os
 import json
 import streamlit as st
 from scripts.settings_script import load_settings
-from scripts.dataset_preparation_script import (
+from scripts.ultralytics.dataset_preparation_script import (
     get_dataset_folders,
     get_unique_labels_from_source,
     create_dataset_structure,

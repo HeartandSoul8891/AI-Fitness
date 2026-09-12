@@ -2,3 +2,9 @@ streamlit
 streamlit-image-annotation
 ultralytics
 numpy
+diffusers
+transformers
+accelerate
+torchvision
+pillow
+safetensors

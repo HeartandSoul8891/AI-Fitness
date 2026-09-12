@@ -3,7 +3,7 @@ import streamlit as st
 from streamlit_image_annotation import detection
 
 from scripts.settings_script import load_settings
-from scripts.annotator_script import (
+from scripts.ultralytics.annotator_script import (
     get_dataset_folders,
     get_image_files,
     prepare_display_image,

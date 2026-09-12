@@ -1,7 +1,7 @@
 import os
 import streamlit as str_lit
 from scripts.settings_script import load_settings
-from scripts.auto_tagger_script import (
+from scripts.ultralytics.auto_tagger_script import (
     run_auto_tagger,
     clean_existing_dataset_json,
 )
@@ -21,9 +21,19 @@ def auto_tagger_tab():
   default_model_dir = "models"
   default_datasets_dir = "datasets"
 
-  model_dir = current_settings.get("custom_model_folder", default_model_dir)
-  datasets_dir = current_settings.get(
-      "custom_datasets_folder", default_datasets_dir
+  # Resolve model_dir checking settings keys with fallbacks
+  model_dir = (
+      current_settings.get("custom_model_folder")
+      or current_settings.get("ultralytics_bbox_folder")
+      or current_settings.get("model_folder")
+      or default_model_dir
+  )
+
+  # Resolve datasets_dir checking settings keys with fallbacks
+  datasets_dir = (
+      current_settings.get("custom_datasets_folder")
+      or current_settings.get("datasets_folder")
+      or default_datasets_dir
   )
 
   # 1. Select Dataset Folder from settings

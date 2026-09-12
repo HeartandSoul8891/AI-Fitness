@@ -41,19 +41,17 @@ def run_yolo_training(
     freeze=0, 
     weight_decay=0.0005, 
     patience=15, 
-    project="runs/train", 
+    project="output/ultralytics/bbox", 
     name="exp",
     model_folder="models"
 ):
     if not os.path.exists(data_path):
         raise FileNotFoundError(f"Dataset configuration file not found: {data_path}")
     
-    # FORCE ABSOLUTE PATHS to prevent Ultralytics from outputting to F:\ or CWD
     abs_data_path = os.path.abspath(data_path)
     abs_project_path = os.path.abspath(project)
     
     resolved_model_path = get_model_path(model_name, model_folder)
-
     model = YOLO(resolved_model_path)
     
     results = model.train(
@@ -66,7 +64,7 @@ def run_yolo_training(
         freeze=freeze,
         weight_decay=weight_decay,
         patience=patience,
-        project=abs_project_path,  # Enforces saving inside app root
+        project=abs_project_path,
         name=name
     )
     return results
