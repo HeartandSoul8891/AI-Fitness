@@ -1,8 +1,6 @@
 7) rebuild the launcher 
 8) add a decent installer 
 9) add rocm support 
-10) work on the textual immersion training flow
-
 
 [ Dataset & Captions ]
         │
