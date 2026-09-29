@@ -5,6 +5,10 @@ numpy
 diffusers
 transformers
 accelerate
-torchvision
 pillow
 safetensors
+timm
+pillow
+pandas
+huggingface_hub
+seaborn

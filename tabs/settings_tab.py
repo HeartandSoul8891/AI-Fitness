@@ -1,11 +1,20 @@
 import json
 import os
 import streamlit as st
+from pathlib import Path
 
 # Application root defaults for local datasets & outputs
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_DATASETS_PATH = os.path.join(APP_ROOT, "datasets")
 DEFAULT_OUTPUT_PATH = os.path.join(APP_ROOT, "output")
+
+# Setup user directory
+BASE_DIR = Path(__file__).parent
+USER_DIR = BASE_DIR / "user"
+USER_DIR.mkdir(parents=True, exist_ok=True)
+
+SETTINGS_FILE = USER_DIR / "settings.json"
+LEGACY_SETTINGS_FILE = BASE_DIR / "settings.json"
 
 COMFY_FOLDERS = {
     "checkpoint_folder": "checkpoints",
@@ -25,11 +34,14 @@ COMFY_FOLDERS = {
 }
 
 def load_settings():
-    try:
-        with open("settings.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+    """Loads settings.json from the user folder."""
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            st.error(f"Error reading settings.json: {e}")
+    return {}
 
 def update_paths_from_root():
     root = st.session_state.get("root_folder", "").strip()
@@ -43,18 +55,14 @@ def update_paths_from_root():
 
     st.session_state["_prev_root"] = root
 
-def save_settings():
-    settings = {
-        "root_folder": st.session_state.get("root_folder", ""),
-        "datasets_folder": st.session_state.get("settings_datasets_folder", "").strip() or DEFAULT_DATASETS_PATH,
-        "output_folder": st.session_state.get("settings_output_folder", "").strip() or DEFAULT_OUTPUT_PATH,
-    }
-
-    for key in COMFY_FOLDERS:
-        settings[key] = st.session_state.get(f"settings_{key}", "")
-
-    with open("settings.json", "w") as f:
-        json.dump(settings, f, indent=4)
+def save_settings(settings_dict):
+    """Saves settings_dict to user/settings.json."""
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings_dict, f, indent=4)
+        st.toast("Application settings updated.", icon="⚙️")
+    except Exception as e:
+        st.error(f"Failed to save settings: {e}")
 
     st.success("Settings saved successfully!")
 

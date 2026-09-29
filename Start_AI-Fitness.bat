@@ -2,14 +2,12 @@
 ::set HSA_OVERRIDE_GFX_VERSION=11.5.1
 ::set CUDA_VISIBLE_DEVICES=0
 ::set HIP_VISIBLE_DEVICES=1
-:: above lines are for AMD GPU users, NVida users can ignore them
 
 ::set AMD_SERIALIZE_KERNEL=1 -> crash log
 ::set AMD_LOG_LEVEL=3 -> logging
-:: logging on amd if there's Rocm trouble, you can upload them to Chatgtp or Gimini for help
 
 ::REM Activate the virtual environment
-call .\venv\Scripts\activate.bat
+call venv\Scripts\activate.bat
 
 ::REM Run Streamlit
-python -m streamlit run main.py
+streamlit run main.py

@@ -16,11 +16,14 @@ def dataset_preparation():
     st.title("Dataset Preparation")
     st.write("Prepare, structure, and convert tagged datasets into YOLO-ready training sets.")
 
-    # Load settings
+    # Load settings with explicit fallbacks
     settings = load_settings()
-    datasets_root = settings.get("custom_datasets_folder") or "datasets"
+    datasets_root = settings.get("datasets_folder") or "datasets"
     
-    # Determine the base app root (parent of datasets_root) so training sits at the app root level
+    # Ensure datasets_root directory exists so get_dataset_folders doesn't break
+    os.makedirs(datasets_root, exist_ok=True)
+    
+    # Determine base app root
     app_root = os.path.dirname(datasets_root) if os.path.dirname(datasets_root) else "."
     training_root = os.path.join(app_root, "training")
 
@@ -28,14 +31,14 @@ def dataset_preparation():
 
     st.markdown("---")
 
-    # 1. Select the tagged dataset folder (same as Annotator)
+    # 1. Select the tagged dataset folder
     st.subheader("1. Select Source Tagged Dataset")
-    tagged_folders = get_dataset_folders(datasets_root)
-    selected_subfolder = st.selectbox("Select Tagged Dataset Folder", tagged_folders)
+    tagged_folders = get_dataset_folders(datasets_root) or ["."]
+    selected_subfolder = st.selectbox("Select Tagged Dataset Folder", tagged_folders) or "."
     
     source_dir = datasets_root if selected_subfolder == "." else os.path.join(datasets_root, selected_subfolder)
 
-    # Output training dataset folder name (nested directly under 'training' at the app root)
+    # Output training dataset folder name
     output_dataset_name = st.text_input("Output Training Dataset Folder Name", value=selected_subfolder if selected_subfolder != "." else "prepared_dataset")
     dataset_path = os.path.join(training_root, output_dataset_name)
 
