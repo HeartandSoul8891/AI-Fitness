@@ -21,46 +21,47 @@ def render_bbox_test_ui():
     default_datasets_dir = settings.get("datasets_folder", "training")
     default_models_dir = settings.get("ultralytics_bbox_folder", "ultralytics/bbox")
 
-    # --- Sidebar / Controls ---
-    st.sidebar.header("📁 Directory & Model Settings")
+    # --- In-Page Control Panel ---
+    st.subheader("⚙️ Configuration & Thresholds")
 
-    # Image Directory Selection
-    test_image_dir = st.sidebar.text_input(
-        "Test Images Directory",
-        value=default_datasets_dir,
-        help="Path to folder containing test images (reads recursively).",
-    )
+    # Row 1: File Paths
+    col_dir, col_model = st.columns(2)
+    with col_dir:
+        test_image_dir = st.text_input(
+            "Test Images Directory",
+            value=default_datasets_dir,
+            help="Path to folder containing test images (reads recursively).",
+        )
+    with col_model:
+        model_path = st.text_input(
+            "YOLO Model Weight Path (.pt)",
+            value=os.path.join(default_models_dir, "best.pt"),
+            help="Path to trained YOLO PyTorch weights.",
+        )
 
-    # Model Checkpoint Path
-    model_path = st.sidebar.text_input(
-        "YOLO Model Weight Path (.pt)",
-        value=os.path.join(default_models_dir, "best.pt"),
-        help="Path to trained YOLO PyTorch weights.",
-    )
+    # Row 2: Sliders
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        pass1_conf = st.slider(
+            "Pass 1 Confidence Threshold (High Precision)",
+            min_value=0.50,
+            max_value=0.95,
+            value=0.75,
+            step=0.01,
+            help="Initial pass to lock in high-confidence detections.",
+        )
+    with col_p2:
+        pass2_conf = st.slider(
+            "Pass 2 Confidence Threshold (Recovery / Edge Cases)",
+            min_value=0.05,
+            max_value=0.49,
+            value=0.17,
+            step=0.01,
+            help="Fallback threshold run only on images missed during Pass 1.",
+        )
 
-    st.sidebar.header("⚙️ Two-Pass Confidence Settings")
-
-    # Slider Controls
-    pass1_conf = st.sidebar.slider(
-        "Pass 1 Confidence Threshold (High Precision)",
-        min_value=0.50,
-        max_value=0.95,
-        value=0.75,
-        step=0.01,
-        help="Initial pass to lock in high-confidence detections.",
-    )
-
-    pass2_conf = st.sidebar.slider(
-        "Pass 2 Confidence Threshold (Recovery / Edge Cases)",
-        min_value=0.05,
-        max_value=0.49,
-        value=0.17,
-        step=0.01,
-        help="Fallback threshold run only on images missed during Pass 1.",
-    )
-
-    # --- Run Stress Test Trigger ---
-    if st.button("🚀 Run Batch Stress Test", type="primary"):
+    # Trigger Button
+    if st.button("🚀 Run Batch Stress Test", type="primary", use_container_width=True):
         if not os.path.exists(test_image_dir):
             st.error(f"Directory not found: `{test_image_dir}`")
             return
@@ -109,6 +110,18 @@ def render_bbox_test_ui():
         m2.metric(f"Pass 1 Hits (≥ {pass1_conf})", summary["pass1_detected"])
         m3.metric(f"Pass 2 Recovered (≥ {pass2_conf})", summary["pass2_recovered"])
         m4.metric("Truly Undetected", summary["still_missed"])
+
+        # Production / Throughput Ratios
+        if summary["total_images"] > 0:
+            m5, m6 = st.columns(2)
+            m5.metric(
+                "Trigger / Detection Rate",
+                f"{(summary['pass1_detected'] + summary['pass2_recovered']) / summary['total_images']:.1%}",
+            )
+            m6.metric(
+                "Passed Through (Empty/No Target)",
+                f"{summary['still_missed'] / summary['total_images']:.1%}",
+            )
 
         if not df_results.empty:
             st.subheader("📈 Confidence Score Distribution")

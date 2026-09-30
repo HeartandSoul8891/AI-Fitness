@@ -5,7 +5,7 @@ from tabs.hypernetwork.hypernetwork_tab import render_ui as hypernetwork_Trainer
 from tabs.lora.lora_tab import lora_Trainer
 from tabs.settings_tab import render_ui as settings
 
-st.set_page_config(page_title="AI-Fitness", page_icon="🧑‍💻", layout="wide")
+st.set_page_config(page_title="AI-Fitness", page_icon="🧑‍‍💻", layout="wide")
 
 st.markdown(
     """
@@ -17,28 +17,38 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Main function to run the Streamlit app
 def main():
-    # Top-level navigation tabs (reduced to 5 main categories since Auto-Tagger moved inside)
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Ultralytics", 
-        "Textual - inversion", 
-        "Hypernetwork", 
-        "Lora", 
-        "Settings"
-    ])
-    
-    with tab1:
-        ultralytics()
-    with tab2:
-        embedding()
-    with tab3:
-        hypernetwork_Trainer()
-    with tab4:
-        lora_Trainer()
-    with tab5:
-        settings()
+    # 1. Initialize session state key for current tab
+    if "active_tab" not in st.session_state:
+        st.session_state["active_tab"] = "Ultralytics"
 
+    # 2. Render top bar navigation
+    selected_tab = st.segmented_control(
+        "Navigation",
+        options=[
+            "Ultralytics", 
+            "Textual - inversion", 
+            "Hypernetwork", 
+            "Lora", 
+            "Settings"
+        ],
+        key="active_tab",
+        label_visibility="collapsed"
+    )
+
+    st.divider()
+
+    # 3. Render only the active tab content
+    if selected_tab == "Ultralytics":
+        ultralytics()
+    elif selected_tab == "Textual - inversion":
+        embedding()
+    elif selected_tab == "Hypernetwork":
+        hypernetwork_Trainer()
+    elif selected_tab == "Lora":
+        lora_Trainer()
+    elif selected_tab == "Settings":
+        settings()
 
 if __name__ == "__main__":
     main()
