@@ -1,6 +1,6 @@
 import streamlit as st
 from PIL import Image
-from scripts.benchmark.florence2_script import (
+from scripts.captions.florence2_script import (
     FLORENCE2_TASKS,
     run_florence2_task,
 )

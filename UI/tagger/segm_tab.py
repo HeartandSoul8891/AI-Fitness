@@ -7,7 +7,7 @@ from scripts.tagger.bbox_tagger_script import (
 )
 
 
-def segm_tagger_tab():
+def segm_tab():
     str_lit.title("Auto-Tagger: BBox → Pseudo-Segmentation")
     str_lit.write(
         "Detect objects using a YOLO model and automatically convert detections into "

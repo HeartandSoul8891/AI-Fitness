@@ -9,59 +9,72 @@ from scripts.tagger.dept_script import (
     export_depth_map_npy
 )
 
-st.set_page_config(
-    page_title="YOLO26 Depth Tagger",
-    page_icon="📏",
-    layout="wide"
-)
+from scripts.settings.settings_script import load_settings
 
-st.title("📏 YOLO26 Depth Estimation Tagger")
+def dept_tab():
+    saved_settings = load_settings()
+    global_datasets_dir = st.session_state.get(
+    "settings_datasets_folder", 
+    saved_settings.get("datasets_folder", "./datasets")
+    
+    )
+    # Session state initialization with dedicated dept_ prefix
+    if "dept_manifest_path" not in st.session_state:
+        st.session_state.dept_manifest_path = "./depth_manifest.json"
 
-# ==========================================
-# CONFIG & SETTINGS (MAIN PAGE)
-# ==========================================
-with st.expander("⚙️ Dataset Configuration & Depth Settings", expanded=False):
+    if "dept_annotations" not in st.session_state:
+        manifest = load_depth_manifest(st.session_state.dept_manifest_path)
+        st.session_state.dept_annotations = manifest.get("annotations", {})
+        st.session_state.dept_image_index = 0
+
+    st.title("📏 YOLO26 Depth Estimation Tagger")
+
+    # Dataset Configuration & Settings
+    st.markdown("### ⚙️ Dataset Configuration & Depth Settings")
     cfg_col1, cfg_col2 = st.columns(2)
+
     with cfg_col1:
         st.subheader("📁 Dataset Directory Configuration")
-        source_dir = st.text_input("RGB Images Source Directory", value="./raw_images")
-        depth_out_dir = st.text_input("Depth Maps Output Directory (.npy)", value="./depth_maps")
-        manifest_path = st.text_input("Manifest JSON Path", value="./depth_manifest.json")
+        source_dir = st.text_input("RGB Images Source Directory", value="./raw_images", key="dept_source_dir_input")
+        depth_out_dir = st.text_input("Depth Maps Output Directory (.npy)", value="./depth_maps", key="dept_out_dir_input")
+        manifest_path = st.text_input("Manifest JSON Path", value=st.session_state.dept_manifest_path, key="dept_manifest_path_input")
+
+        # Reload manifest if path changed
+        if manifest_path != st.session_state.dept_manifest_path:
+            manifest = load_depth_manifest(manifest_path)
+            st.session_state.dept_manifest_path = manifest_path
+            st.session_state.dept_annotations = manifest.get("annotations", {})
+            st.session_state.dept_image_index = 0
+            st.rerun()
 
     with cfg_col2:
         st.subheader("⚙️ Default Depth Settings")
-        default_min_depth = st.number_input("Min Depth (meters)", value=0.5, step=0.1)
-        default_max_depth = st.number_input("Max Depth (meters)", value=10.0, step=0.5)
+        default_min_depth = st.number_input("Min Depth (meters)", value=0.5, step=0.1, key="dept_min_val")
+        default_max_depth = st.number_input("Max Depth (meters)", value=10.0, step=0.5, key="dept_max_val")
 
-# Initialize session state
-if "manifest_path" not in st.session_state or st.session_state.manifest_path != manifest_path:
-    manifest = load_depth_manifest(manifest_path)
-    st.session_state.manifest_path = manifest_path
-    st.session_state.annotations = manifest.get("annotations", {})
-    st.session_state.image_index = 0
+    st.markdown("---")
 
-# ==========================================
-# MAIN INTERFACE
-# ==========================================
-image_files = scan_depth_dataset(source_dir)
+    # Main Interface
+    image_files = scan_depth_dataset(source_dir)
 
-if not image_files:
-    st.warning(f"No valid RGB images found in `{source_dir}`. Please verify the folder path.")
-else:
+    if not image_files:
+        st.warning(f"No valid RGB images found in `{source_dir}`. Please verify the folder path.")
+        return
+
     total_imgs = len(image_files)
     
-    if st.session_state.image_index >= total_imgs:
-        st.session_state.image_index = total_imgs - 1
-    elif st.session_state.image_index < 0:
-        st.session_state.image_index = 0
+    if st.session_state.dept_image_index >= total_imgs:
+        st.session_state.dept_image_index = total_imgs - 1
+    elif st.session_state.dept_image_index < 0:
+        st.session_state.dept_image_index = 0
 
-    idx = st.session_state.image_index
+    idx = st.session_state.dept_image_index
     current_file = image_files[idx]
     filename = current_file.name
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Images", total_imgs)
-    col2.metric("Depth Maps Created", len(st.session_state.annotations))
+    col2.metric("Depth Maps Created", len(st.session_state.dept_annotations))
     col3.metric("Progress", f"{idx + 1} / {total_imgs}")
 
     st.progress((idx + 1) / total_imgs)
@@ -77,7 +90,7 @@ else:
             annotated_img = image.copy()
             draw = ImageDraw.Draw(annotated_img)
 
-            existing_data = st.session_state.annotations.get(filename, {})
+            existing_data = st.session_state.dept_annotations.get(filename, {})
             points = existing_data.get("points", [])
 
             for pt in points:
@@ -95,15 +108,15 @@ else:
         st.subheader("Annotate Distance Points")
         st.write("Add depth anchor points (In Meters):")
         
-        x_coord = st.number_input("Point X (px)", min_value=0, max_value=w if 'w' in locals() else 1920, value=w//2 if 'w' in locals() else 0)
-        y_coord = st.number_input("Point Y (px)", min_value=0, max_value=h if 'h' in locals() else 1080, value=h//2 if 'h' in locals() else 0)
-        depth_val = st.number_input("Distance / Depth (meters)", min_value=0.01, max_value=100.0, value=2.5, step=0.1)
+        x_coord = st.number_input("Point X (px)", min_value=0, max_value=w if 'w' in locals() else 1920, value=w//2 if 'w' in locals() else 0, key="dept_px_x")
+        y_coord = st.number_input("Point Y (px)", min_value=0, max_value=h if 'h' in locals() else 1080, value=h//2 if 'h' in locals() else 0, key="dept_px_y")
+        depth_val = st.number_input("Distance / Depth (meters)", min_value=0.01, max_value=100.0, value=2.5, step=0.1, key="dept_dist_val")
 
-        if st.button("➕ Add Depth Point", use_container_width=True):
-            if filename not in st.session_state.annotations:
-                st.session_state.annotations[filename] = {"points": []}
+        if st.button("➕ Add Depth Point", use_container_width=True, key="dept_add_btn"):
+            if filename not in st.session_state.dept_annotations:
+                st.session_state.dept_annotations[filename] = {"points": []}
             
-            st.session_state.annotations[filename]["points"].append({
+            st.session_state.dept_annotations[filename]["points"].append({
                 "x": int(x_coord),
                 "y": int(y_coord),
                 "depth": float(depth_val)
@@ -113,36 +126,48 @@ else:
                 depth_out_dir, 
                 filename, 
                 (w, h), 
-                st.session_state.annotations[filename]["points"]
+                st.session_state.dept_annotations[filename]["points"]
             )
-            st.session_state.annotations[filename]["npy_file"] = npy_path
+            st.session_state.dept_annotations[filename]["npy_file"] = npy_path
             
-            save_depth_manifest(manifest_path, st.session_state.annotations)
+            save_depth_manifest(st.session_state.dept_manifest_path, st.session_state.dept_annotations)
             st.success(f"Added anchor: ({x_coord}, {y_coord}) = {depth_val}m")
             st.rerun()
 
-        if filename in st.session_state.annotations and st.session_state.annotations[filename]["points"]:
+        if filename in st.session_state.dept_annotations and st.session_state.dept_annotations[filename]["points"]:
             st.markdown("---")
             st.write("**Current Keypoints:**")
-            for i, pt in enumerate(st.session_state.annotations[filename]["points"]):
+            for i, pt in enumerate(st.session_state.dept_annotations[filename]["points"]):
                 st.text(f"#{i+1}: ({pt['x']}, {pt['y']}) -> {pt['depth']}m")
 
-            if st.button("🗑️ Clear All Points for Image", use_container_width=True):
-                st.session_state.annotations[filename]["points"] = []
+            if st.button("🗑️ Clear All Points for Image", use_container_width=True, key="dept_clear_btn"):
+                st.session_state.dept_annotations[filename]["points"] = []
                 export_depth_map_npy(depth_out_dir, filename, (w, h), [])
-                save_depth_manifest(manifest_path, st.session_state.annotations)
+                save_depth_manifest(st.session_state.dept_manifest_path, st.session_state.dept_annotations)
                 st.rerun()
 
         st.markdown("---")
         nav_prev, nav_next = st.columns(2)
         with nav_prev:
-            if st.button("⬅️ Previous", use_container_width=True):
-                if st.session_state.image_index > 0:
-                    st.session_state.image_index -= 1
+            if st.button("⬅️ Previous", use_container_width=True, key="dept_prev_btn"):
+                if st.session_state.dept_image_index > 0:
+                    st.session_state.dept_image_index -= 1
                     st.rerun()
 
         with nav_next:
-            if st.button("Next ➡️", use_container_width=True):
-                if st.session_state.image_index < total_imgs - 1:
-                    st.session_state.image_index += 1
+            if st.button("Next ➡️️", use_container_width=True, key="dept_next_btn"):
+                if st.session_state.dept_image_index < total_imgs - 1:
+                    st.session_state.dept_image_index += 1
                     st.rerun()
+
+# Module Export Aliases
+depth_tab = dept_tab
+render_dept_tab = dept_tab
+
+if __name__ == "__main__":
+    st.set_page_config(
+        page_title="YOLO26 Depth Tagger",
+        page_icon="📏",
+        layout="wide"
+    )
+    dept_tab()

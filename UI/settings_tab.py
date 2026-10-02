@@ -32,11 +32,15 @@ COMFY_FOLDERS = {
     "upscale_models_folder": "upscale_models",
     "vae_folder": "vae",
     "ultralytics_bbox_folder": "ultralytics/bbox",
+    "ultralytics_cls_folder": "ultralytics/cls",
     "ultralytics_segm_folder": "ultralytics/segm",
+    "ultralytics_obb_folder": "ultralytics/obb",
+    "ultralytics_pose_folder": "ultralytics/pose",
+    "ultralytics_dept_folder": "ultralytics/dept",
 }
 
 def render_settings_tab():
-    st.title("⚙️ Settings & Configuration")
+    st.title("⚙️️ Settings & Configuration")
 
     saved_settings = load_settings()
 

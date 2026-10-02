@@ -3,9 +3,21 @@ import os
 import streamlit as st
 from pathlib import Path
 
+# Application/project roots
+TAB_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = TAB_DIR.parent
+
+APP_ROOT = str(PROJECT_ROOT)
+DEFAULT_DATASETS_PATH = os.path.join(PROJECT_ROOT, "datasets")
+DEFAULT_OUTPUT_PATH = os.path.join(PROJECT_ROOT, "output")
+DEFAULT_TRAINING_PATH = os.path.join(PROJECT_ROOT, "training")
+
+USER_DIR = PROJECT_ROOT / "user"
+USER_DIR.mkdir(parents=True, exist_ok=True)
+
+SETTINGS_FILE = USER_DIR / "settings.json"
+
 COMFY_FOLDERS = {
-    "datasets_folder": "datasets",
-    "output_folder": "output",
     "checkpoint_folder": "checkpoints",
     "clip_folder": "clip",
     "clip_vision_folder": "clip_vision",
@@ -19,72 +31,152 @@ COMFY_FOLDERS = {
     "upscale_models_folder": "upscale_models",
     "vae_folder": "vae",
     "ultralytics_bbox_folder": "ultralytics/bbox",
+    "ultralytics_cls_folder": "ultralytics/cls",
     "ultralytics_segm_folder": "ultralytics/segm",
+    "ultralytics_obb_folder": "ultralytics/obb",
+    "ultralytics_pose_folder": "ultralytics/pose",
+    "ultralytics_dept_folder": "ultralytics/dept",
 }
 
-def load_settings():
-    # Check root/user/settings.json first, then fall back to root/settings.json
-    project_root = Path(__file__).parent.parent.resolve()
-    user_settings = project_root / "user" / "settings.json"
-    root_settings = project_root / "settings.json"
-
-    for path in (user_settings, root_settings):
-        if path.exists():
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-    return {}
-
-def update_paths_from_root():
-    root = st.session_state.get("root_folder", "").strip()
-    if not root:
-        return
-
-    for key, subfolder in COMFY_FOLDERS.items():
-        current_path = st.session_state.get(f"settings_{key}", "").strip()
-        if not current_path or current_path.startswith(st.session_state.get("_prev_root", "")):
-            st.session_state[f"settings_{key}"] = os.path.join(root, subfolder)
-
-    st.session_state["_prev_root"] = root
-
-def save_settings():
-    settings = {"root_folder": st.session_state.get("root_folder", "")}
-
-    for key in COMFY_FOLDERS:
-        settings[key] = st.session_state.get(f"settings_{key}", "")
-
-    with open("settings.json", "w") as f:
-        json.dump(settings, f, indent=4)
-
-    st.success("Settings saved successfully!")
-
-def render_ui():
-    st.title("Settings Configuration")
+def render_settings_tab():
+    st.title("⚙️ Settings & Configuration")
 
     saved_settings = load_settings()
 
     if "root_folder" not in st.session_state:
         st.session_state["root_folder"] = saved_settings.get("root_folder", "")
 
+    if "settings_datasets_folder" not in st.session_state:
+        st.session_state["settings_datasets_folder"] = saved_settings.get(
+            "datasets_folder", DEFAULT_DATASETS_PATH
+        )
+
+    if "settings_output_folder" not in st.session_state:
+        st.session_state["settings_output_folder"] = saved_settings.get(
+            "output_folder", DEFAULT_OUTPUT_PATH
+        )
+
+    if "settings_training_folder" not in st.session_state:
+        st.session_state["settings_training_folder"] = saved_settings.get(
+            "training_folder", DEFAULT_TRAINING_PATH
+        )
+
     for key in COMFY_FOLDERS:
         session_key = f"settings_{key}"
         if session_key not in st.session_state:
-            st.session_state[session_key] = saved_settings.get(key, "")
+            saved_val = saved_settings.get(key, "")
+            if not saved_val and st.session_state["root_folder"]:
+                saved_val = os.path.normpath(
+                    os.path.join(
+                        st.session_state["root_folder"],
+                        COMFY_FOLDERS[key],
+                    )
+                )
+            st.session_state[session_key] = saved_val
 
     st.text_input(
-        "Root Folder", key="root_folder", on_change=update_paths_from_root
+        "Root Folder",
+        key="root_folder",
+        on_change=sync_paths_from_root,
     )
+
+    if st.button("Save Settings", type="primary", use_container_width=True):
+        if st.session_state.get("root_folder"):
+            sync_paths_from_root()
+
+        settings_dict = {
+            "root_folder": st.session_state.get("root_folder", ""),
+            "datasets_folder": st.session_state.get(
+                "settings_datasets_folder", DEFAULT_DATASETS_PATH
+            ),
+            "output_folder": st.session_state.get(
+                "settings_output_folder", DEFAULT_OUTPUT_PATH
+            ),
+            "training_folder": st.session_state.get(
+                "settings_training_folder", DEFAULT_TRAINING_PATH
+            ),
+        }
+
+        for key in COMFY_FOLDERS:
+            settings_dict[key] = st.session_state.get(f"settings_{key}", "")
+
+        save_settings(settings_dict)
 
     st.divider()
 
+    st.subheader("App Working Directories")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.text_input(
+            "Datasets Folder Path",
+            key="settings_datasets_folder",
+            help="Standaard pad: AI-Fitness/datasets",
+        )
+
+    with col2:
+        st.text_input(
+            "Output Folder Path",
+            key="settings_output_folder",
+            help="Standaard pad: AI-Fitness/output",
+        )
+
+    with col3:
+        st.text_input(
+            "Training Folder Path",
+            key="settings_training_folder",
+            help="Standaard pad: AI-Fitness/training",
+        )
+
+    st.divider()
+
+    st.subheader("Model Directory Paths")
     for key in COMFY_FOLDERS:
         label = key.replace("_", " ").title()
         st.text_input(label, key=f"settings_{key}")
 
-    if st.button("Save Settings", type="primary", use_container_width=True):
-        save_settings()
+
+def load_settings():
+    """Load settings.json from root/user."""
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            st.error(f"Fout bij het lezen van settings.json: {e}")
+    return {}
+
+
+def sync_paths_from_root():
+    """Synchronize all Settings paths from Root Folder."""
+    root = st.session_state.get("root_folder", "").strip()
+    if not root:
+        return
+
+    root = os.path.normpath(root)
+
+    st.session_state["settings_datasets_folder"] = os.path.join(root, "datasets")
+    st.session_state["settings_output_folder"] = os.path.join(root, "output")
+    st.session_state["settings_training_folder"] = os.path.join(root, "training")
+
+    for key, subfolder in COMFY_FOLDERS.items():
+        st.session_state[f"settings_{key}"] = os.path.normpath(
+            os.path.join(root, subfolder)
+        )
+
+
+def save_settings(settings_dict):
+    """Save settings_dict to root/user/settings.json."""
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings_dict, f, indent=4)
+
+        st.toast("Applicatie-instellingen bijgewerkt.", icon="⚙")
+        st.success("Instellingen succesvol opgeslagen!")
+
+    except Exception as e:
+        st.error(f"Fout bij het opslaan van instellingen: {e}")
+
 
 if __name__ == "__main__":
-    render_ui()
+    render_settings_tab()

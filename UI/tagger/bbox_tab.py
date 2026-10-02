@@ -1,17 +1,24 @@
 import os
-import streamlit as str_lit
-from scripts.settings.settings_script import load_settings
+import streamlit as st
+
 from scripts.tagger.bbox_tagger_script import (
     run_auto_tagger,
     clean_existing_dataset_json,
 )
 
+from scripts.settings.settings_script import load_settings
 
-def bbox_tagger_tab():
-    str_lit.title("Auto Tagger & Bounding Box Visualizer")
-    str_lit.write(
+def bbox_tab():
+    st.title("Auto Tagger & Bounding Box Visualizer")
+    st.write(
         "Detect objects using a YOLO model, map model classes to your own custom"
         " tag names, filter by size, and run safety checks."
+    )
+
+    saved_settings = load_settings()
+    global_datasets_dir = st.session_state.get(
+    "settings_datasets_folder", 
+    saved_settings.get("datasets_folder", "./datasets")
     )
 
     current_settings = load_settings()
@@ -20,8 +27,8 @@ def bbox_tagger_tab():
     default_datasets_dir = "datasets"
 
     # Get values from session state only if they are valid, non-empty strings
-    ss_model_dir = str_lit.session_state.get("settings_ultralytics_bbox_folder")
-    ss_dataset_dir = str_lit.session_state.get("settings_datasets_folder")
+    ss_model_dir = st.session_state.get("settings_ultralytics_bbox_folder")
+    ss_dataset_dir = st.session_state.get("settings_datasets_folder")
 
     model_dir = (
         (ss_model_dir if ss_model_dir and ss_model_dir.strip() else None)
@@ -41,7 +48,7 @@ def bbox_tagger_tab():
     )
 
     # 1. Select Dataset Folder
-    str_lit.subheader("1. Select Dataset Folder")
+    st.subheader("1. Select Dataset Folder")
     dataset_options = []
     if os.path.exists(datasets_dir):
         dataset_options = [datasets_dir] + [
@@ -52,12 +59,12 @@ def bbox_tagger_tab():
     else:
         dataset_options = [datasets_dir]
 
-    selected_dataset = str_lit.selectbox(
+    selected_dataset = st.selectbox(
         "Choose Dataset Directory", dataset_options, key="bbox_tagger_dataset_dir"
     )
 
     # 2. Select YOLO Model
-    str_lit.subheader("2. Select YOLO Model")
+    st.subheader("2. Select YOLO Model")
     model_options = []
     if os.path.exists(model_dir):
         for root, _, files in os.walk(model_dir):
@@ -66,56 +73,56 @@ def bbox_tagger_tab():
                     model_options.append(os.path.normpath(os.path.join(root, f)))
 
     if model_options:
-        selected_model = str_lit.selectbox(
+        selected_model = st.selectbox(
             f"Choose YOLO Model File (Directory: {model_dir})",
             options=model_options,
             key="bbox_tagger_model_file",
         )
     else:
-        str_lit.warning(f"No YOLO model files found in: `{model_dir}`")
-        selected_model = str_lit.text_input(
+        st.warning(f"No YOLO model files found in: `{model_dir}`")
+        selected_model = st.text_input(
             "Manually enter model file path",
             value="",
             key="bbox_tagger_manual_model_file",
         )
 
     # 3. Model Tag Mapping Option
-    str_lit.subheader("3. YOLO Model Tag Mapping")
-    col1, col2 = str_lit.columns(2)
+    st.subheader("3. YOLO Model Tag Mapping")
+    col1, col2 = st.columns(2)
     with col1:
-        target_model_class = str_lit.text_input(
+        target_model_class = st.text_input(
             "Model Tag (What model knows)",
             value="",
             placeholder="e.g., flowers",
             key="bbox_tagger_target_class",
         )
     with col2:
-        new_tag = str_lit.text_input(
+        new_tag = st.text_input(
             "New Tag (What to save as)",
             value="",
             placeholder="e.g., rose",
             key="bbox_tagger_new_tag",
         )
-    str_lit.caption(
+    st.caption(
         "Example: If the model detects 'flowers', it will map it and trigger the"
         " tag 'rose'. Leave 'Model Tag' blank to capture all model classes."
     )
 
     # 4. Additional Global Default Tag
-    str_lit.subheader("4. Additional Global Default Tag")
-    default_tag = str_lit.text_input(
+    st.subheader("4. Additional Global Default Tag")
+    default_tag = st.text_input(
         "General Default Tag",
         value="",
         placeholder="e.g., project_name",
         key="bbox_tagger_default_tag",
     )
-    str_lit.caption(
+    st.caption(
         "This tag will be added to every processed image regardless of detections."
     )
 
     # 5. Detection, Sizing Filters & Benchmark Settings
-    str_lit.subheader("5. Detection, Bounding Box Sizing & Benchmark Settings")
-    conf_threshold = str_lit.slider(
+    st.subheader("5. Detection, Bounding Box Sizing & Benchmark Settings")
+    conf_threshold = st.slider(
         "Confidence Threshold",
         min_value=0.0,
         max_value=1.0,
@@ -124,9 +131,9 @@ def bbox_tagger_tab():
         key="bbox_tagger_conf_slider",
     )
 
-    col_size1, col_size2 = str_lit.columns(2)
+    col_size1, col_size2 = st.columns(2)
     with col_size1:
-        max_box_dimension = str_lit.slider(
+        max_box_dimension = st.slider(
             "Max Bounding Box Size Ratio",
             min_value=0.5,
             max_value=1.0,
@@ -136,7 +143,7 @@ def bbox_tagger_tab():
             key="bbox_tagger_max_box_slider",
         )
     with col_size2:
-        min_box_dimension = str_lit.slider(
+        min_box_dimension = st.slider(
             "Min Bounding Box Size Ratio",
             min_value=0.0,
             max_value=0.2,
@@ -146,13 +153,13 @@ def bbox_tagger_tab():
             key="bbox_tagger_min_box_slider",
         )
 
-    is_benchmark = str_lit.checkbox(
+    is_benchmark = st.checkbox(
         "Enable Benchmark Mode (Preview without saving permanent files)",
         key="bbox_tagger_is_benchmark_cb",
     )
     benchmark_limit = 5
     if is_benchmark:
-        benchmark_limit = str_lit.number_input(
+        benchmark_limit = st.number_input(
             "Number of images to preview in benchmark",
             min_value=1,
             max_value=48,
@@ -161,33 +168,33 @@ def bbox_tagger_tab():
         )
 
     # 6. Trigger Action Buttons
-    str_lit.markdown("---")
-    col_run, col_clean = str_lit.columns(2)
+    st.markdown("---")
+    col_run, col_clean = st.columns(2)
 
     with col_run:
-        run_btn = str_lit.button(
+        run_btn = st.button(
             "Run Auto-Tagger & Sanity Check Outputs",
             type="primary",
             key="bbox_tagger_run_btn",
         )
     with col_clean:
-        clean_btn = str_lit.button(
+        clean_btn = st.button(
             "Clean-up Existing JSON Duplicates",
             key="bbox_tagger_clean_btn",
         )
 
     if run_btn:
         if not selected_dataset:
-            str_lit.error("Please select a valid dataset folder.")
+            st.error("Please select a valid dataset folder.")
         elif not selected_model:
-            str_lit.error("Please select or specify a valid YOLO model.")
+            st.error("Please select or specify a valid YOLO model.")
         else:
             action_label = (
                 "Running Benchmark Preview with Sanity Check..."
                 if is_benchmark
                 else "Running YOLO detection, size filtering, and sanity check..."
             )
-            with str_lit.spinner(action_label):
+            with st.spinner(action_label):
                 result = run_auto_tagger(
                     dataset_path=selected_dataset,
                     model_path=selected_model,
@@ -201,37 +208,37 @@ def bbox_tagger_tab():
                     benchmark_limit=int(benchmark_limit),
                 )
                 if result["success"]:
-                    str_lit.success(result["message"])
+                    st.success(result["message"])
 
                     if is_benchmark and "preview_items" in result:
-                        str_lit.markdown("### 🔍 Benchmark Visual Preview (Sanitized)")
-                        str_lit.info(
+                        st.markdown("### 🔍 Benchmark Visual Preview (Sanitized)")
+                        st.info(
                             f"Displaying {len(result['preview_items'])} test images with"
                             " double-checked clean bounding boxes. (No files were written"
                             " to disk)."
                         )
 
                         for item in result["preview_items"]:
-                            str_lit.markdown(
+                            st.markdown(
                                 f"**Image:** `{os.path.basename(item['image_path'])}`"
                             )
-                            str_lit.json(item["detections_summary"])
-                            str_lit.image(
+                            st.json(item["detections_summary"])
+                            st.image(
                                 item["img_rgb"], channels="RGB", use_container_width=True
                             )
-                            str_lit.markdown("---")
+                            st.markdown("---")
                 else:
-                    str_lit.error(result["message"])
+                    st.error(result["message"])
 
     if clean_btn:
         if not selected_dataset:
-            str_lit.error("Please select a valid dataset folder.")
+            st.error("Please select a valid dataset folder.")
         else:
-            with str_lit.spinner(
+            with st.spinner(
                 "Scanning and cleaning duplicate tags/boxes in existing JSONs..."
             ):
                 clean_result = clean_existing_dataset_json(selected_dataset)
                 if clean_result["success"]:
-                    str_lit.success(clean_result["message"])
+                    st.success(clean_result["message"])
                 else:
-                    str_lit.error(clean_result["message"])
+                    st.error(clean_result["message"])
