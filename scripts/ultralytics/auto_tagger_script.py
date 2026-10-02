@@ -22,11 +22,10 @@ def compute_iou(box1, box2):
 
   return inter_area / union_area if union_area > 0 else 0.0
 
-
 def filter_overlapping_detections(
-    detections, iou_threshold=0.3, max_detections_per_image=1
+    detections, iou_threshold=0.5, max_detections_per_image=100
 ):
-  """Strictly filters out overlapping bounding boxes and enforces maximum allowed detections."""
+  """Filters out heavily overlapping duplicate bounding boxes while allowing multiple distinct detections per image."""
   if not detections:
     return []
 
@@ -48,7 +47,8 @@ def filter_overlapping_detections(
       existing_tag = existing.get("applied_tag", "")
 
       iou = compute_iou(current_box, existing_box)
-      if (current_tag == existing_tag and iou > iou_threshold) or iou > 0.7:
+      # Drop only if it's the same tag overlapping heavily (>50% IoU) or identical box (>85% IoU)
+      if (current_tag == existing_tag and iou > iou_threshold) or iou > 0.85:
         keep = False
         break
 
@@ -56,7 +56,6 @@ def filter_overlapping_detections(
       filtered.append(current)
 
   return filtered
-
 
 def sanity_check_and_filter_boxes(
     detections, img_width, img_height, max_dim=0.95, min_dim=0.01
@@ -216,9 +215,9 @@ def run_auto_tagger(
               "box_xyxy": [x1, y1, x2, y2],
           })
 
-      # Pass 1: IoU Overlap Filtering
+      # Pass 1: IoU Overlap Filtering (Allowing up to 100 detections per image)
       overlap_filtered = filter_overlapping_detections(
-          raw_detected_boxes, iou_threshold=0.4
+          raw_detected_boxes, iou_threshold=0.5, max_detections_per_image=100
       )
 
       # Pass 2: Secondary Sanity Checker (Size & Boundary Validation)

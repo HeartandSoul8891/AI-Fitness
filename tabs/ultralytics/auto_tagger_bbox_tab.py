@@ -19,16 +19,24 @@ def auto_tagger_tab():
     default_model_dir = "models"
     default_datasets_dir = "datasets"
 
+    # Get values from session state only if they are valid, non-empty strings
+    ss_model_dir = str_lit.session_state.get("settings_ultralytics_bbox_folder")
+    ss_dataset_dir = str_lit.session_state.get("settings_datasets_folder")
+
     model_dir = (
-        current_settings.get("custom_model_folder")
+        (ss_model_dir if ss_model_dir and ss_model_dir.strip() else None)
         or current_settings.get("ultralytics_bbox_folder")
+        or current_settings.get("settings_ultralytics_bbox_folder")
+        or current_settings.get("custom_model_folder")
         or current_settings.get("model_folder")
         or default_model_dir
     )
 
     datasets_dir = (
-        current_settings.get("custom_datasets_folder")
+        (ss_dataset_dir if ss_dataset_dir and ss_dataset_dir.strip() else None)
         or current_settings.get("datasets_folder")
+        or current_settings.get("settings_datasets_folder")
+        or current_settings.get("custom_datasets_folder")
         or default_datasets_dir
     )
 
@@ -37,7 +45,7 @@ def auto_tagger_tab():
     dataset_options = []
     if os.path.exists(datasets_dir):
         dataset_options = [datasets_dir] + [
-            os.path.join(datasets_dir, d)
+            os.path.normpath(os.path.join(datasets_dir, d))
             for d in os.listdir(datasets_dir)
             if os.path.isdir(os.path.join(datasets_dir, d))
         ]
@@ -52,23 +60,23 @@ def auto_tagger_tab():
     str_lit.subheader("2. Select YOLO Model")
     model_options = []
     if os.path.exists(model_dir):
-        model_options = [
-            os.path.join(model_dir, f)
-            for f in os.listdir(model_dir)
-            if f.endswith((".pt", ".pth"))
-        ]
+        for root, _, files in os.walk(model_dir):
+            for f in files:
+                if f.lower().endswith((".pt", ".pth", ".onnx", ".engine", ".safetensors")):
+                    model_options.append(os.path.normpath(os.path.join(root, f)))
 
     if model_options:
         selected_model = str_lit.selectbox(
-            "Choose YOLO Model File", model_options, key="bbox_tagger_model_file"
+            f"Choose YOLO Model File (Directory: {model_dir})",
+            options=model_options,
+            key="bbox_tagger_model_file",
         )
     else:
-        str_lit.warning(
-            f"No YOLO model files (.pt/.pth) found in '{model_dir}'. Please add"
-            " weights or check your settings."
-        )
+        str_lit.warning(f"No YOLO model files found in: `{model_dir}`")
         selected_model = str_lit.text_input(
-            "Or enter model path manually", "", key="bbox_tagger_manual_model"
+            "Manually enter model file path",
+            value="",
+            key="bbox_tagger_manual_model_file",
         )
 
     # 3. Model Tag Mapping Option

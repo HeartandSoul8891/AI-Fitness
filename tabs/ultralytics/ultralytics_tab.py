@@ -2,7 +2,7 @@ import streamlit as st
 from tabs.ultralytics.annotator_tab import annotator
 from tabs.ultralytics.auto_tagger_bbox_tab import auto_tagger_tab as tagger
 from tabs.ultralytics.dataset_preparation_tab import dataset_preparation as data
-from tabs.ultralytics.bbox_trainer_tab import bbox_trainer_tab as bbox
+from tabs.ultralytics.bbox_resolver import bbox_trainer_tab as bbox
 from tabs.ultralytics.segm_trainer_tab import segm_trainer_tab as segm
 from tabs.ultralytics.bbox_test_gui import render_bbox_test_ui as bbox_tester
 from tabs.ultralytics.auto_tagger_bbox_segm_tab import auto_tagger_segm_tab as tsegm

@@ -1,16 +1,3 @@
-"""
-AI-Fitness Textual Inversion trainer.
-
-A small, project-local implementation of the Hugging Face Diffusers SD1.x
-textual-inversion training flow. It trains only the newly added token
-embedding(s); the VAE and UNet remain frozen.
-
-The module is usable from Streamlit through `train_textual_inversion(config,
-progress_callback=...)`, or directly from the command line with a JSON config:
-
-    python scripts/textual_inversion/textual_inversion_script.py config.json
-"""
-
 from __future__ import annotations
 
 import argparse

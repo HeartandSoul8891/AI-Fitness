@@ -1,6 +1,7 @@
 import json
 import os
 import streamlit as st
+from pathlib import Path
 
 COMFY_FOLDERS = {
     "datasets_folder": "datasets",
@@ -22,11 +23,19 @@ COMFY_FOLDERS = {
 }
 
 def load_settings():
-    try:
-        with open("settings.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+    # Check root/user/settings.json first, then fall back to root/settings.json
+    project_root = Path(__file__).parent.parent.resolve()
+    user_settings = project_root / "user" / "settings.json"
+    root_settings = project_root / "settings.json"
+
+    for path in (user_settings, root_settings):
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+    return {}
 
 def update_paths_from_root():
     root = st.session_state.get("root_folder", "").strip()

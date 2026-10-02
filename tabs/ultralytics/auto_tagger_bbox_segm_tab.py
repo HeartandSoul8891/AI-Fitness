@@ -15,18 +15,29 @@ def auto_tagger_segm_tab():
     )
 
     current_settings = load_settings()
-    
-    # Correct model directory prioritization using settings keys from settings_tab.py
+
+    default_model_dir = "models"
+    default_datasets_dir = "datasets"
+
+    # Get values from session state only if they are valid, non-empty strings
+    ss_model_dir = str_lit.session_state.get("settings_ultralytics_bbox_folder")
+    ss_dataset_dir = str_lit.session_state.get("settings_datasets_folder")
+
     model_dir = (
-        current_settings.get("ultralytics_segm_folder")
+        (ss_model_dir if ss_model_dir and ss_model_dir.strip() else None)
         or current_settings.get("ultralytics_bbox_folder")
-        or current_settings.get("checkpoint_folder")
-        or "models"
+        or current_settings.get("settings_ultralytics_bbox_folder")
+        or current_settings.get("custom_model_folder")
+        or current_settings.get("model_folder")
+        or default_model_dir
     )
 
     datasets_dir = (
-        current_settings.get("datasets_folder")
-        or "datasets"
+        (ss_dataset_dir if ss_dataset_dir and ss_dataset_dir.strip() else None)
+        or current_settings.get("datasets_folder")
+        or current_settings.get("settings_datasets_folder")
+        or current_settings.get("custom_datasets_folder")
+        or default_datasets_dir
     )
 
     # 1. Select Dataset Folder
@@ -42,43 +53,33 @@ def auto_tagger_segm_tab():
         dataset_options = [datasets_dir]
 
     selected_dataset = str_lit.selectbox(
-        "Choose Dataset Directory", 
-        dataset_options, 
-        key="segm_tagger_dataset_dir"
+        "Choose Dataset Directory", dataset_options, key="segm_tagger_dataset_dir"
     )
 
-    # 2. Select YOLO Model from settings
+    # 2. Select YOLO Model
     str_lit.subheader("2. Select YOLO Model")
-    
     model_options = []
     if os.path.exists(model_dir):
         for root, _, files in os.walk(model_dir):
             for f in files:
-                if f.endswith((".pt", ".pth", ".engine", ".onnx")):
+                if f.lower().endswith((".pt", ".pth", ".onnx", ".engine", ".safetensors")):
                     model_options.append(os.path.normpath(os.path.join(root, f)))
 
-    if not model_options:
-        model_options = [
-            os.path.normpath(os.path.join(model_dir, "best.pt")),
-            os.path.normpath(os.path.join(model_dir, "yolov8n-seg.pt")),
-            "Custom Path..."
-        ]
+    if model_options:
+        selected_model = str_lit.selectbox(
+            f"Choose YOLO Model File (Directory: {model_dir})",
+            options=model_options,
+            key="segm_tagger_model_file",
+        )
     else:
-        model_options.append("Custom Path...")
-
-    selected_model = str_lit.selectbox(
-        "Choose YOLO Model File",
-        options=model_options,
-        key="segm_tagger_model_file",
-    )
-
-    if selected_model == "Custom Path...":
+        str_lit.warning(f"No YOLO model files found in: `{model_dir}`")
         selected_model = str_lit.text_input(
-            "Enter custom model path (.pt / .pth)",
+            "Manually enter model file path",
             value="",
-            key="segm_tagger_manual_model_path",
+            key="segm_tagger_manual_model_file",
         )
 
+    
     # 3. Model Tag Mapping Option
     str_lit.subheader("3. YOLO Model Tag Mapping")
     col1, col2 = str_lit.columns(2)
@@ -206,7 +207,6 @@ def auto_tagger_segm_tab():
                 else "Generating pseudo-segmentation masks and tagging..."
             )
             with str_lit.spinner(action_label):
-                # Safely inspect or pass keyword arguments supported by auto_tagger_script
                 kwargs = {
                     "dataset_path": selected_dataset,
                     "model_path": selected_model,
@@ -220,7 +220,6 @@ def auto_tagger_segm_tab():
                     "benchmark_limit": int(benchmark_limit),
                 }
 
-                # Support both naming conventions depending on auto_tagger_script version
                 import inspect
                 sig = inspect.signature(run_auto_tagger)
                 params = sig.parameters

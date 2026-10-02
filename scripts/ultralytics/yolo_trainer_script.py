@@ -32,75 +32,22 @@ def get_model_path(model_name, model_folder="models"):
   return os.path.abspath(model_name)
 
 
-def run_yolo_training(
-    data_path,
-    model_name="yolov8n.pt",
-    epochs=50,
-    imgsz=640,
-    batch=16,
-    device=0,
-    single_cls=False,
-    freeze=0,
-    weight_decay=0.0005,
-    patience=15,
-    project="output/ultralytics/bbox",
-    name="exp",
-    model_folder="models",
-    # Augmentation Parameters
-    hsv_h=0.015,
-    hsv_s=0.7,
-    hsv_v=0.4,
-    degrees=0.0,
-    translate=0.1,
-    scale=0.5,
-    shear=0.0,
-    perspective=0.0,
-    flipud=0.0,
-    fliplr=0.5,
-    mosaic=1.0,
-    mixup=0.0,
-    copy_paste=0.0,
-    erasing=0.4,
-    close_mosaic=10,
-):
+def run_yolo_training(data_path, model_name="yolov8n.pt", **kwargs):
   if not os.path.exists(data_path):
     raise FileNotFoundError(
         f"Dataset configuration file not found: {data_path}"
     )
 
   abs_data_path = os.path.abspath(data_path)
+
+  # Extract project and model_folder from kwargs if present, with defaults
+  project = kwargs.pop("project", "output/ultralytics/bbox")
+  model_folder = kwargs.pop("model_folder", "models")
   abs_project_path = os.path.abspath(project)
 
   resolved_model_path = get_model_path(model_name, model_folder)
   model = YOLO(resolved_model_path)
 
-  results = model.train(
-      data=abs_data_path,
-      epochs=epochs,
-      imgsz=imgsz,
-      batch=batch,
-      device=device,
-      single_cls=single_cls,
-      freeze=freeze,
-      weight_decay=weight_decay,
-      patience=patience,
-      project=abs_project_path,
-      name=name,
-      # Augmentation Settings
-      hsv_h=hsv_h,
-      hsv_s=hsv_s,
-      hsv_v=hsv_v,
-      degrees=degrees,
-      translate=translate,
-      scale=scale,
-      shear=shear,
-      perspective=perspective,
-      flipud=flipud,
-      fliplr=fliplr,
-      mosaic=mosaic,
-      mixup=mixup,
-      copy_paste=copy_paste,
-      erasing=erasing,
-      close_mosaic=close_mosaic,
-  )
+  # Pass all user settings dynamically to Ultralytics model.train
+  results = model.train(data=abs_data_path, project=abs_project_path, **kwargs)
   return results

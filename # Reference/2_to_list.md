@@ -11,10 +11,28 @@
 		
 Combining a LoRA and a Textual Inversion trained on the exact same dataset is known in the research community as Pivotal Tuning (or Pivotal Tuning Inversion)
 
-
-
-at settings -> set Root Folder -> change -> "Root Comfyui/A1111 root folder
-
 ==========================================================================
 
 add urgently a wiki
+
+==========================================================================
+
+add native segm tagger
+
+==========================================================================
+
+build tagger for blip, clip and lonewolf
+
+==========================================================================
+
+test TI trainer
+
+==========================================================================
+
+add lora trainer
+
+==========================================================================
+
+test hypernetwork trainer
+
+==========================================================================
