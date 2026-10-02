@@ -12,3 +12,4 @@ pillow
 pandas
 huggingface_hub
 seaborn
+onnxruntime
