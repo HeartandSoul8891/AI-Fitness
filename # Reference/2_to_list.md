@@ -1,7 +1,3 @@
-7) rebuild the launcher 
-8) add a decent installer 
-9) add rocm support 
-
 [ Dataset & Captions ]
         │
         ├── Mode 1: Textual Inversion Only (Optimizes Embedding Vectors)
@@ -14,12 +10,6 @@ Combining a LoRA and a Textual Inversion trained on the exact same dataset is kn
 ==========================================================================
 
 add urgently a wiki
-
-==========================================================================
-
-add native segm tagger
-
-==========================================================================
 
 build tagger for blip, clip and lonewolf
 

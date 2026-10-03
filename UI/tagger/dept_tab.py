@@ -1,23 +1,79 @@
-import streamlit as st
-import numpy as np
-from PIL import Image, ImageDraw
+import json
+import os
+import sys
 from pathlib import Path
-from scripts.tagger.dept_script import (
-    load_depth_manifest,
-    save_depth_manifest,
-    scan_depth_dataset,
-    export_depth_map_npy
-)
+import numpy as np
+import streamlit as st
 
-from scripts.settings.settings_script import load_settings
+# Safe resolution of project root into sys.path
+FILE_PATH = Path(__file__).resolve()
+PROJECT_ROOT = FILE_PATH.parent.parent if FILE_PATH.parent.name == "tabs" else FILE_PATH.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# Safe fallback for settings script
+def get_app_settings():
+    try:
+        from scripts.settings.settings_script import load_settings
+        return load_settings()
+    except Exception:
+        return {}
+
+# Safe fallbacks for depth backend functions
+try:
+    from scripts.tagger.dept_script import (
+        export_depth_map_npy,
+        load_depth_manifest,
+        save_depth_manifest,
+        scan_depth_dataset,
+    )
+except ImportError:
+    def load_depth_manifest(manifest_path):
+        p = Path(manifest_path)
+        if p.exists():
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {"annotations": {}}
+
+    def save_depth_manifest(manifest_path, annotations):
+        p = Path(manifest_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump({"annotations": annotations}, f, indent=4)
+
+    def scan_depth_dataset(source_dir):
+        p = Path(source_dir)
+        valid_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        if not p.exists():
+            return []
+        return [f for f in p.iterdir() if f.is_file() and f.suffix.lower() in valid_exts and not f.stem.endswith("-edit")]
+
+    def export_depth_map_npy(output_dir, filename, img_size, points):
+        out_p = Path(output_dir)
+        out_p.mkdir(parents=True, exist_ok=True)
+        npy_path = out_p / f"{Path(filename).stem}_depth.npy"
+        w, h = img_size
+        depth_map = np.zeros((h, w), dtype=np.float32)
+        for pt in points:
+            px, py, d = int(pt["x"]), int(pt["y"]), float(pt["depth"])
+            if 0 <= px < w and 0 <= py < h:
+                depth_map[py, px] = d
+        np.save(npy_path, depth_map)
+        return str(npy_path)
+
 
 def dept_tab():
-    saved_settings = load_settings()
+    from PIL import Image, ImageDraw
+
+    saved_settings = get_app_settings()
     global_datasets_dir = st.session_state.get(
-    "settings_datasets_folder", 
-    saved_settings.get("datasets_folder", "./datasets")
-    
+        "settings_datasets_folder", 
+        saved_settings.get("datasets_folder", "./datasets")
     )
+
     # Session state initialization with dedicated dept_ prefix
     if "dept_manifest_path" not in st.session_state:
         st.session_state.dept_manifest_path = "./depth_manifest.json"
@@ -27,7 +83,7 @@ def dept_tab():
         st.session_state.dept_annotations = manifest.get("annotations", {})
         st.session_state.dept_image_index = 0
 
-    st.title("📏 YOLO26 Depth Estimation Tagger")
+    st.title("📏 YOLO Depth Estimation Tagger")
 
     # Dataset Configuration & Settings
     st.markdown("### ⚙️ Dataset Configuration & Depth Settings")
@@ -35,7 +91,8 @@ def dept_tab():
 
     with cfg_col1:
         st.subheader("📁 Dataset Directory Configuration")
-        source_dir = st.text_input("RGB Images Source Directory", value="./raw_images", key="dept_source_dir_input")
+        default_src = str(Path(global_datasets_dir) / "raw_images") if Path(global_datasets_dir).exists() else "./raw_images"
+        source_dir = st.text_input("RGB Images Source Directory", value=default_src, key="dept_source_dir_input")
         depth_out_dir = st.text_input("Depth Maps Output Directory (.npy)", value="./depth_maps", key="dept_out_dir_input")
         manifest_path = st.text_input("Manifest JSON Path", value=st.session_state.dept_manifest_path, key="dept_manifest_path_input")
 
@@ -63,9 +120,9 @@ def dept_tab():
 
     total_imgs = len(image_files)
     
-    if st.session_state.dept_image_index >= total_imgs:
+    if st.session_state.get("dept_image_index", 0) >= total_imgs:
         st.session_state.dept_image_index = total_imgs - 1
-    elif st.session_state.dept_image_index < 0:
+    elif st.session_state.get("dept_image_index", 0) < 0:
         st.session_state.dept_image_index = 0
 
     idx = st.session_state.dept_image_index
@@ -155,18 +212,31 @@ def dept_tab():
                     st.rerun()
 
         with nav_next:
-            if st.button("Next ➡️️", use_container_width=True, key="dept_next_btn"):
+            if st.button("Next ➡", use_container_width=True, key="dept_next_btn"):
                 if st.session_state.dept_image_index < total_imgs - 1:
                     st.session_state.dept_image_index += 1
                     st.rerun()
 
-# Module Export Aliases
-depth_tab = dept_tab
+# Module Entry Point Aliases for main tab loaders
+def main():
+    dept_tab()
+
+def app():
+    dept_tab()
+
+def show():
+    dept_tab()
+
+def render():
+    dept_tab()
+
+render_tab = dept_tab
 render_dept_tab = dept_tab
+depth_tab = dept_tab
 
 if __name__ == "__main__":
     st.set_page_config(
-        page_title="YOLO26 Depth Tagger",
+        page_title="YOLO Depth Tagger",
         page_icon="📏",
         layout="wide"
     )

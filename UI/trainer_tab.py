@@ -4,11 +4,12 @@ import streamlit as st
 def render_trainer_tab():
     st.header("🏋️ Model Trainer Workspace")
 
-    tab_bbox, tab_segm, tab_lora, tab_embed = st.tabs([
+    tab_bbox, tab_segm, tab_lora, tab_embed, tab_train = st.tabs([
         "🎯 BBox Trainer",
         "✂️ Segm Trainer",
         "🎨 LoRA Trainer",
-        "🧠 Textual Inversion & Hypernetworks"
+        "🧠 Textual Inversion & Hypernetworks",
+        "🏋️ Train"
     ])
 
     with tab_bbox:
@@ -46,3 +47,10 @@ def render_trainer_tab():
                 hypernetwork_tab.render_hypernetwork_ui()
             except Exception as e:
                 st.error(f"Failed to load Hypernetwork: {e}")
+
+    with tab_train:
+        try:
+            from UI.trainer import yolo_complete_tab
+            yolo_complete_tab.trainer_tab()
+        except Exception as e:
+            st.error(f"Failed to load YOLO Trainer: {e}")
