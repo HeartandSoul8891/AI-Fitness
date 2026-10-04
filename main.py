@@ -125,18 +125,14 @@ def run_gui():
     # ---------------------------------------------------------
     with tab_trainer:
         if trainer_gui:
-            if hasattr(trainer_gui, 'yolo_trainer_gui'):
-                trainer_gui.yolo_trainer_gui()
-            elif hasattr(trainer_gui, 'yolo'):
-                trainer_gui.yolo()
-            elif hasattr(trainer_gui, 'main'):
-                trainer_gui.main()
+            # ✅ FIX: Check for 'render_yolo_tab' instead of 'yolo_trainer_gui'
+            if hasattr(trainer_gui, 'render_yolo_tab'):
+                trainer_gui.render_yolo_tab()            
             else:
                 st.info("Trainer GUI module found, but awaiting final implementation.")
         else:
             st.info("🚧 **YOLO Trainer is under construction.**")
             st.write("The backend (`yolo_trainer_script.py`) and GUI (`trainer_gui.py`) are the final pieces of the pipeline.")
-
 
 # ==========================================
 # 4. ENTRY POINT

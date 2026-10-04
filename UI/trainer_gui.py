@@ -22,7 +22,54 @@ except ImportError:
     def load_settings(): return {}
     def start_yolo_training(*args, **kwargs): return False, "Script missing", None
 
+# Import backend modules to detect actual hardware dynamically
+try:
+    from backend import cuda_backend, rocm_backend, cpu_backend
+except ImportError:
+    cuda_backend = rocm_backend = cpu_backend = None
+
 PRESETS_DIR = PROJECT_ROOT / "user" / "presets" / "ultralytics"
+
+# ==========================================
+# HARDWARE DETECTION HELPER
+# ==========================================
+def get_available_devices():
+    """Dynamically build a list of available compute devices from backend modules."""
+    devices = []
+    device_map = {}  # Maps friendly name to actual device string (e.g., "cuda:0")
+    
+    # 1. Check CUDA
+    if cuda_backend:
+        info = cuda_backend.get_info()
+        if info.get("available"):
+            vram = info.get("vram_gb") or 0
+            name = f"NVIDIA {info.get('gpu_name', 'GPU')} (CUDA, {vram:.1f} GB VRAM)"
+            devices.append(name)
+            device_map[name] = info.get("device", "cuda:0")
+            
+    # 2. Check ROCm
+    if rocm_backend:
+        info = rocm_backend.get_info()
+        if info.get("available"):
+            vram = info.get("vram_gb") or 0
+            name = f"AMD {info.get('gpu_name', 'GPU')} (ROCm, {vram:.1f} GB VRAM)"
+            devices.append(name)
+            device_map[name] = info.get("device", "cuda:0")  # ROCm uses cuda:0 in PyTorch
+            
+    # 3. Check CPU (Always available as fallback)
+    if cpu_backend:
+        name = "CPU (Fallback)"
+        devices.append(name)
+        device_map[name] = "cpu"
+    else:
+        devices.append("CPU (Fallback)")
+        device_map["CPU (Fallback)"] = "cpu"
+        
+    # 4. Add "auto" option at the top
+    devices.insert(0, "Auto (Let Ultralytics decide)")
+    device_map["Auto (Let Ultralytics decide)"] = "auto"
+    
+    return devices, device_map
 
 # ==========================================
 # HELPER FUNCTIONS
@@ -74,12 +121,24 @@ def render_yolo_tab():
     # ==========================================
     st.subheader("1. Task & Compute Device")
     col_task, col_device = st.columns(2)
+    
+    # Get dynamic hardware list
+    available_devices, device_map = get_available_devices()
+    
     with col_task:
-        task_type = st.selectbox("YOLO Task Type", options=list(TASK_BASE_MODELS.keys()), 
-                                 format_func=lambda x: {"bbox":"Detection (BBox)","segm":"Segmentation","obb":"Oriented BB","pose":"Pose","cls":"Classification","dept":"Depth"}[x], 
-                                 key="trn_task_type")
+        task_type = st.selectbox(
+            "YOLO Task Type", 
+            options=list(TASK_BASE_MODELS.keys()), 
+            format_func=lambda x: {"bbox":"Detection (BBox)","segm":"Segmentation","obb":"Oriented BB","pose":"Pose","cls":"Classification","dept":"Depth"}.get(x, x), 
+            key="trn_task_type"
+        )
     with col_device:
-        device_opt = st.selectbox("Compute Device", ["auto", "gpu", "cpu"], key="trn_device_opt")
+        selected_device_name = st.selectbox("Compute Device", available_devices, key="trn_device_opt")
+        actual_device = device_map[selected_device_name]
+        
+        # Show a little info about the resolved device
+        if actual_device != "auto":
+            st.caption(f"🔌 Backend will use: `{actual_device}`")
 
     st.markdown("---")
 
@@ -88,7 +147,6 @@ def render_yolo_tab():
     # ==========================================
     st.subheader("2. Dataset & Base Weights")
     dset_col, weight_col = st.columns(2)
-    
     with dset_col:
         yaml_files = get_yaml_files(settings)
         if yaml_files:
@@ -97,7 +155,7 @@ def render_yolo_tab():
             st.warning(f"No YAML files found in `datasets/` or `training/`. Did you run Dataset Prep?")
             data_path = st.text_input("Or enter path manually", os.path.join(settings.get("datasets_folder", "datasets"), "data.yaml"), key="trn_data_path_manual")
             data_path = data_path if data_path else os.path.join(settings.get("datasets_folder", "datasets"), "data.yaml")
-
+            
         # Dataset Validator
         if os.path.exists(data_path):
             checks = []
@@ -113,7 +171,7 @@ def render_yolo_tab():
     with weight_col:
         model_options = get_model_files(task_type, settings)
         model_weights = st.selectbox("Pretrained Weights (.pt)", model_options, key="trn_model_weights")
-
+        
     st.markdown("---")
 
     # ==========================================
@@ -136,7 +194,7 @@ def render_yolo_tab():
         with c4:
             optimizer = st.selectbox("Optimizer", ["auto", "SGD", "Adam", "AdamW", "RMSProp"], key="trn_optimizer")
             seed = st.number_input("Random Seed", 0, 999999, 0, key="trn_seed")
-        
+            
         c5, c6, c7 = st.columns(3)
         with c5:
             freeze = st.number_input("Freeze Layers (e.g., 10)", 0, 50, 0, key="trn_freeze")
@@ -147,7 +205,7 @@ def render_yolo_tab():
         with c7:
             cos_lr = st.checkbox("Cosine LR Scheduler", key="trn_cos_lr")
             val_eval = st.checkbox("Run Validation", value=True, key="trn_val_eval")
-
+            
     with tab_aug:
         a1, a2, a3 = st.columns(3)
         with a1:
@@ -165,12 +223,12 @@ def render_yolo_tab():
             fliplr = st.slider("Flip Left-Right", 0.0, 1.0, 0.5, key="trn_fliplr")
             mosaic = st.slider("Mosaic", 0.0, 1.0, 1.0, key="trn_mosaic")
             mixup = st.slider("Mixup", 0.0, 1.0, 0.0, key="trn_mixup")
-        
+            
         c_aug2, _ = st.columns([1, 2])
         with c_aug2:
             erasing = st.slider("Random Erasing", 0.0, 1.0, 0.4, key="trn_erasing")
             close_mosaic = st.number_input("Close Mosaic (Last N Epochs)", 0, 50, 10, key="trn_close_mosaic")
-
+            
     st.markdown("---")
 
     # ==========================================
@@ -179,7 +237,6 @@ def render_yolo_tab():
     st.subheader("4. Presets")
     os.makedirs(PRESETS_DIR, exist_ok=True)
     preset_files = [f for f in os.listdir(PRESETS_DIR) if f.endswith(".json")]
-    
     p_col1, p_col2, p_col3, p_col4 = st.columns([2, 2, 1, 1])
     
     # Gather current UI state for saving
@@ -205,7 +262,7 @@ def render_yolo_tab():
                 with open(PRESETS_DIR / selected_preset, "r") as f:
                     st.session_state["load_preset_flag"] = json.load(f)
                 st.rerun()
-
+                
     st.markdown("---")
 
     # ==========================================
@@ -217,23 +274,22 @@ def render_yolo_tab():
         project_name = st.text_input("Project Folder", value=f"yolo_{task_type}_project", key="trn_proj_name")
     with e_col2:
         run_name = st.text_input("Run Name", value="train_run_01", key="trn_run_name")
-
+        
     if st.button("🔥 Start Unified Training", type="primary", use_container_width=True):
         if not os.path.exists(data_path):
             st.error(f"Dataset path not found: `{data_path}`")
             return
-        
-        with st.spinner(f"Training {task_type.upper()} model... Check terminal for epoch logs."):
+            
+        with st.spinner(f"Training {task_type.upper()} model on `{actual_device}`... Check terminal for epoch logs."):
             success, message, output_path = start_yolo_training(
                 task_type=task_type,
                 dataset_path=data_path,
                 model_weights=model_weights,
                 project_name=project_name,
                 run_name=run_name,
-                device=device_opt,
-                **current_settings # Passes all hyperparameters and augmentations cleanly
+                device=actual_device,  # <--- Pass the resolved backend string (e.g., "cuda:0")
+                **current_settings
             )
-            
             if success:
                 st.success(message)
                 if output_path and os.path.exists(output_path):
@@ -241,8 +297,10 @@ def render_yolo_tab():
                     results_png = os.path.join(output_path, "results.png")
                     confusion_png = os.path.join(output_path, "confusion_matrix.png")
                     col_a, col_b = st.columns(2)
-                    if os.path.exists(results_png): col_a.image(results_png, caption="Results Metrics", use_container_width=True)
-                    if os.path.exists(confusion_png): col_b.image(confusion_png, caption="Confusion Matrix", use_container_width=True)
+                    if os.path.exists(results_png): 
+                        col_a.image(results_png, caption="Results Metrics", use_container_width=True)
+                    if os.path.exists(confusion_png): 
+                        col_b.image(confusion_png, caption="Confusion Matrix", use_container_width=True)
             else:
                 st.error(message)
 
