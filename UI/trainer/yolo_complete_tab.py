@@ -4,69 +4,67 @@ import sys
 from pathlib import Path
 import streamlit as st
 
+# FIX: Changed Path(file) to Path(__file__)
 FILE_PATH = Path(__file__).resolve()
 PROJECT_ROOT = FILE_PATH.parent.parent if FILE_PATH.parent.name == "tabs" else FILE_PATH.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-try:
-    from scripts.settings.settings_script import load_settings
-except ImportError:
-    def load_settings():
-        return {}
+def load_settings_clean():
+    raw = {}
+    try:
+        from scripts.settings.settings_script import load_settings as _load
+        raw = _load()
+    except ImportError:
+        settings_file = PROJECT_ROOT / "user" / "settings.json"
+        if settings_file.exists():
+            try:
+                with open(settings_file, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+            except Exception:
+                pass
+    
+    # Strip accidental trailing spaces from keys and values
+    return {str(k).strip(): (v.strip() if isinstance(v, str) else v) for k, v in raw.items()}
 
 try:
     from scripts.trainer.yolo_complete_script import start_yolo_training, resolve_model_save_dir, TASK_BASE_MODELS
 except ImportError:
     TASK_BASE_MODELS = {
-        "bbox": "yolo11n.pt",
-        "segm": "yolo11n-seg.pt",
-        "obb": "yolo11n-obb.pt",
-        "pose": "yolo11n-pose.pt",
-        "cls": "yolo11n-cls.pt",
-        "dept": "yolo11n.pt"
+        "bbox": "yolo11n.pt", "segm": "yolo11n-seg.pt", "obb": "yolo11n-obb.pt",
+        "pose": "yolo11n-pose.pt", "cls": "yolo11n-cls.pt", "dept": "yolo11n.pt"
     }
     def resolve_model_save_dir(task_type):
         return PROJECT_ROOT / "output" / "models" / task_type
     def start_yolo_training(*args, **kwargs):
         return False, "Trainer script module not found.", None
 
-# All Ultralytics setting keys
 ULTRALYTICS_FOLDER_KEYS = [
-    "ultralytics_bbox_folder",
-    "ultralytics_cls_folder",
-    "ultralytics_segm_folder",
-    "ultralytics_obb_folder",
-    "ultralytics_pose_folder",
-    "ultralytics_dept_folder",
+    "ultralytics_bbox_folder", "ultralytics_cls_folder", "ultralytics_segm_folder",
+    "ultralytics_obb_folder", "ultralytics_pose_folder", "ultralytics_dept_folder",
 ]
 
 def trainer_tab():
     st.title("🚀 Multi-Task YOLO Model Trainer")
     st.write("Train and fine-tune Ultralytics YOLO models with fully customizable training parameters.")
-
-    settings = load_settings()
-    training_root = settings.get("training_folder") or os.path.join(PROJECT_ROOT, "training")
     
+    settings = load_settings_clean()
+    training_root = settings.get("training_folder") or str(PROJECT_ROOT / "training")
+
     # 1. Task & Device Selection
     st.subheader("1. Task & Compute Device Setup")
     col_task, col_device = st.columns(2)
-
     with col_task:
         task_type = st.selectbox(
             "YOLO Task Type",
             options=["bbox", "segm", "obb", "pose", "cls", "dept"],
             format_func=lambda x: {
-                "bbox": "Bounding Box (Detection)",
-                "segm": "Instance Segmentation",
-                "obb": "Oriented Bounding Box (OBB)",
-                "pose": "Pose / Keypoint Estimation",
-                "cls": "Image Classification",
-                "dept": "Depth / Distance Estimation"
+                "bbox": "Bounding Box (Detection)", "segm": "Instance Segmentation",
+                "obb": "Oriented Bounding Box (OBB)", "pose": "Pose / Keypoint Estimation",
+                "cls": "Image Classification", "dept": "Depth / Distance Estimation"
             }[x],
             key="trn_task_type"
         )
-
     with col_device:
         device_opt = st.selectbox(
             "Compute Hardware Device",
@@ -84,37 +82,60 @@ def trainer_tab():
     # 2. Dataset & Base Weights
     st.subheader("2. Dataset & Base Weights")
     dset_col, weight_col = st.columns(2)
-
+    
     with dset_col:
         prepared_datasets = []
         if os.path.exists(training_root):
             prepared_datasets = [d for d in os.listdir(training_root) if os.path.isdir(os.path.join(training_root, d))]
-        
         if not prepared_datasets:
             prepared_datasets = ["."]
-
+            
         selected_ds_folder = st.selectbox("Select Prepared Training Dataset", prepared_datasets, key="trn_dataset_select")
         dataset_full_path = os.path.join(training_root, selected_ds_folder) if selected_ds_folder != "." else training_root
+        
         st.caption(f"Target path: `{dataset_full_path}`")
+        
+        # --- DATASET STRUCTURE VALIDATOR ---
+        if os.path.exists(dataset_full_path) and selected_ds_folder != ".":
+            checks = []
+            if os.path.exists(os.path.join(dataset_full_path, "data.yaml")):
+                checks.append("✅ `data.yaml`")
+            else:
+                checks.append("❌ `data.yaml`")
+                
+            if os.path.exists(os.path.join(dataset_full_path, "train", "images")):
+                checks.append("✅ `train/images`")
+            else:
+                checks.append("❌ `train/images`")
+                
+            if os.path.exists(os.path.join(dataset_full_path, "val", "images")):
+                checks.append("✅ `val/images`")
+            else:
+                checks.append("❌ `val/images`")
+                
+            st.markdown("**Dataset Structure:** " + " | ".join(checks))
+            
+            yaml_path = os.path.join(dataset_full_path, "data.yaml")
+            if os.path.exists(yaml_path):
+                with st.expander("📄 View `data.yaml` content"):
+                    with open(yaml_path, "r", encoding="utf-8") as f:
+                        st.code(f.read(), language="yaml")
+        # -----------------------------------
 
     with weight_col:
         default_weights = TASK_BASE_MODELS.get(task_type, "yolo11n.pt")
-        
         available_weights = [default_weights]
         model_paths_map = {default_weights: default_weights}
 
-        # Scan ALL ultralytics folders configured in settings
         for folder_key in ULTRALYTICS_FOLDER_KEYS:
             folder_path = settings.get(folder_key, "")
             if folder_path and os.path.exists(folder_path):
                 for file_name in sorted(os.listdir(folder_path)):
                     if file_name.endswith((".pt", ".yaml", ".onnx", ".engine")):
-                        # Format display label to show source directory tag if names duplicate
                         display_name = file_name
                         if display_name in model_paths_map and model_paths_map[display_name] != os.path.join(folder_path, file_name):
                             subfolder_tag = os.path.basename(folder_path)
                             display_name = f"{file_name} ({subfolder_tag})"
-                        
                         if display_name not in available_weights:
                             available_weights.append(display_name)
                         model_paths_map[display_name] = os.path.join(folder_path, file_name)
@@ -125,15 +146,12 @@ def trainer_tab():
             key="trn_weights_select"
         )
         weights_path = model_paths_map.get(selected_weight_name, selected_weight_name)
-        
-        save_target = resolve_model_save_dir(task_type)
         st.caption(f"Selected model path: `{weights_path}`")
 
     st.markdown("---")
 
     # 3. Training Hyperparameters
     st.subheader("3. Training Hyperparameters")
-    
     hp_col1, hp_col2, hp_col3, hp_col4 = st.columns(4)
     with hp_col1:
         epochs = st.number_input("Epochs", min_value=1, max_value=5000, value=50, step=5, key="trn_epochs")
@@ -174,7 +192,7 @@ def trainer_tab():
         if not os.path.exists(dataset_full_path):
             st.error(f"Selected dataset folder does not exist: `{dataset_full_path}`")
             return
-
+            
         with st.spinner(f"Training {task_type.upper()} model... Check terminal logs for epoch updates."):
             success, message, output_path = start_yolo_training(
                 task_type=task_type,
@@ -195,14 +213,13 @@ def trainer_tab():
                 project_name=project_name,
                 run_name=run_name
             )
-
+            
             if success:
                 st.success(message)
                 if output_path and os.path.exists(output_path):
                     st.markdown("### 📊 Training Artifacts")
                     results_png = os.path.join(output_path, "results.png")
                     confusion_png = os.path.join(output_path, "confusion_matrix.png")
-
                     col_a, col_b = st.columns(2)
                     if os.path.exists(results_png):
                         col_a.image(results_png, caption="Results Metrics Plot", use_container_width=True)
@@ -211,19 +228,7 @@ def trainer_tab():
             else:
                 st.error(message)
 
-
-def main():
-    trainer_tab()
-
-def app():
-    trainer_tab()
-
-def show():
-    trainer_tab()
-
-def render():
-    trainer_tab()
-
+# Module Entry Point Aliases
 render_tab = trainer_tab
 render_trainer_tab = trainer_tab
 

@@ -11,14 +11,15 @@ APP_ROOT = str(PROJECT_ROOT)
 DEFAULT_DATASETS_PATH = os.path.join(PROJECT_ROOT, "datasets")
 DEFAULT_OUTPUT_PATH = os.path.join(PROJECT_ROOT, "output")
 DEFAULT_TRAINING_PATH = os.path.join(PROJECT_ROOT, "training")
+DEFAULT_WD14_TAGGER_PATH = os.path.join(PROJECT_ROOT, "datasets")
 
 # Instellingen direct in root/user bewaren (in plaats van root/tabs/user)
 USER_DIR = PROJECT_ROOT / "user"
 USER_DIR.mkdir(parents=True, exist_ok=True)
 
 SETTINGS_FILE = USER_DIR / "settings.json"
-
 COMFY_FOLDERS = {
+    "blip_folder": "blip",
     "checkpoint_folder": "checkpoints",
     "clip_folder": "clip",
     "clip_vision_folder": "clip_vision",
@@ -40,7 +41,7 @@ COMFY_FOLDERS = {
 }
 
 def render_settings_tab():
-    st.title("⚙️️ Settings & Configuration")
+    st.title("⚙ Settings & Configuration")
 
     saved_settings = load_settings()
 
@@ -50,6 +51,9 @@ def render_settings_tab():
     # Initialiseer werkmappen
     if "settings_datasets_folder" not in st.session_state:
         st.session_state["settings_datasets_folder"] = saved_settings.get("datasets_folder", DEFAULT_DATASETS_PATH)
+
+    if "settings_wd14_tagger_folder" not in st.session_state:
+        st.session_state["settings_wd14_tagger_folder"] = saved_settings.get("wd14_tagger_folder", DEFAULT_WD14_TAGGER_PATH)
 
     if "settings_output_folder" not in st.session_state:
         st.session_state["settings_output_folder"] = saved_settings.get("output_folder", DEFAULT_OUTPUT_PATH)
@@ -81,6 +85,7 @@ def render_settings_tab():
         settings_dict = {
             "root_folder": st.session_state.get("root_folder", ""),
             "datasets_folder": st.session_state.get("settings_datasets_folder", DEFAULT_DATASETS_PATH),
+            "wd14_tagger_folder": st.session_state.get("settings_wd14_tagger_folder", DEFAULT_WD14_TAGGER_PATH),
             "output_folder": st.session_state.get("settings_output_folder", DEFAULT_OUTPUT_PATH),
             "training_folder": st.session_state.get("settings_training_folder", DEFAULT_TRAINING_PATH),
         }
@@ -92,22 +97,29 @@ def render_settings_tab():
     st.divider()
 
     st.subheader("App Working Directories")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.text_input(
             "Datasets Folder Path",
             key="settings_datasets_folder",
-            help="Standaard pad: AI-Fitness/datasets"
+            help="Standaard pad voor dataset opslag"
         )
 
     with col2:
+        st.text_input(
+            "WD14 Tagger Folder Path",
+            key="settings_wd14_tagger_folder",
+            help="Standaard dataset pad gebruikt door de WD14 Tagger"
+        )
+
+    with col3:
         st.text_input(
             "Output Folder Path",
             key="settings_output_folder",
             help="Standaard pad: AI-Fitness/output"
         )
 
-    with col3:
+    with col4:
         st.text_input(
             "Training Folder Path",
             key="settings_training_folder",

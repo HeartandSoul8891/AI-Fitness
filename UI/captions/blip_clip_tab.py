@@ -1,8 +1,12 @@
 import streamlit as st
 from PIL import Image
+import json
 from scripts.captions.blip_script import generate_blip_caption, answer_blip_vqa
 from scripts.captions.clip_script import run_clip_zero_shot
 
+# Read settings.json
+with open("AI-Fitness\\user\\settings.json", "r") as f:
+    settings = json.load(f)
 
 def blip_clip_tab():
     st.title("👁️ Vision & Language Suite (BLIP & CLIP)")
@@ -10,9 +14,10 @@ def blip_clip_tab():
         "Generate automated captions, perform Visual Question Answering (VQA), or execute zero-shot classification using BLIP and CLIP models."
     )
 
-    tab_blip, tab_clip = st.tabs([
+    tab_blip, tab_clip, tab_test = st.tabs([
         "📝 BLIP: Caption & VQA",
-        "🎯 CLIP: Zero-Shot Classification"
+        "🎯 CLIP: Zero-Shot Classification",
+        "🧪 Test: Preview Tags"
     ])
 
     # ---------------------------------------------------------
@@ -143,6 +148,34 @@ def blip_clip_tab():
                             except Exception as e:
                                 st.error(f"Error executing CLIP evaluation: {e}")
 
+    # ---------------------------------------------------------
+    # TAB 3: Test (Preview Tags)
+    # ---------------------------------------------------------
+    with tab_test:
+        st.subheader("🧪 Test: Preview Tags")
+
+        test_col_left, test_col_right = st.columns([1, 1])
+
+        with test_col_left:
+            test_image_path = st.text_input("Enter Image Path", value="path/to/image.jpg")
+            if test_image_path:
+                test_image = Image.open(test_image_path).convert("RGB")
+                st.image(test_image, caption="Target Image", use_container_width=True)
+
+        with test_col_right:
+            if st.button("🔍 Preview Tags", type="primary", use_container_width=True):
+                if not test_image_path:
+                    st.warning("Please enter an image path.")
+                else:
+                    with st.spinner("Generating tags..."):
+                        try:
+                            # Example tag generation logic (replace with actual logic)
+                            tags = ["tag1", "tag2", "tag3"]
+                            st.success("Tags Generated!")
+                            st.subheader("Generated Tags:")
+                            st.info(", ".join(tags))
+                        except Exception as e:
+                            st.error(f"Error generating tags: {e}")
 
 if __name__ == "__main__":
     blip_clip_tab()
