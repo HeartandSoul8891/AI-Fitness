@@ -1,168 +1,140 @@
-import json
-import os
 import streamlit as st
+import os
 from pathlib import Path
 
-# Applicatie- en project roots instellen (één niveau omhoog vanuit de tabs/ map)
-TAB_DIR = Path(__file__).parent.resolve()
-PROJECT_ROOT = TAB_DIR.parent
+# Import backend functions
+# Adjust import path if this file is inside a 'tabs' or 'scripts' folder
 
-APP_ROOT = str(PROJECT_ROOT)
-DEFAULT_DATASETS_PATH = os.path.join(PROJECT_ROOT, "datasets")
-DEFAULT_OUTPUT_PATH = os.path.join(PROJECT_ROOT, "output")
-DEFAULT_TRAINING_PATH = os.path.join(PROJECT_ROOT, "training")
-DEFAULT_WD14_TAGGER_PATH = os.path.join(PROJECT_ROOT, "datasets")
-
-# Instellingen direct in root/user bewaren (in plaats van root/tabs/user)
-USER_DIR = PROJECT_ROOT / "user"
-USER_DIR.mkdir(parents=True, exist_ok=True)
-
-SETTINGS_FILE = USER_DIR / "settings.json"
-COMFY_FOLDERS = {
-    "blip_folder": "blip",
-    "checkpoint_folder": "checkpoints",
-    "clip_folder": "clip",
-    "clip_vision_folder": "clip_vision",
-    "controlnet_folder": "controlnet",
-    "diffusion_models_folder": "diffusion_models",
-    "embeddings_folder": "embeddings",
-    "hypernetworks_folder": "hypernetworks",
-    "loras_folder": "loras",
-    "text_encoders_folder": "text_encoders",
-    "unet_folder": "unet",
-    "upscale_models_folder": "upscale_models",
-    "vae_folder": "vae",
-    "ultralytics_bbox_folder": "ultralytics/bbox",
-    "ultralytics_cls_folder": "ultralytics/cls",
-    "ultralytics_segm_folder": "ultralytics/segm",
-    "ultralytics_obb_folder": "ultralytics/obb",
-    "ultralytics_pose_folder": "ultralytics/pose",
-    "ultralytics_dept_folder": "ultralytics/dept",
-}
+from scripts.settings_script import load_settings, save_settings, sync_paths_from_root
 
 def render_settings_tab():
-    st.title("⚙ Settings & Configuration")
-
-    saved_settings = load_settings()
-
-    if "root_folder" not in st.session_state:
-        st.session_state["root_folder"] = saved_settings.get("root_folder", "")
-
-    # Initialiseer werkmappen
-    if "settings_datasets_folder" not in st.session_state:
-        st.session_state["settings_datasets_folder"] = saved_settings.get("datasets_folder", DEFAULT_DATASETS_PATH)
-
-    if "settings_wd14_tagger_folder" not in st.session_state:
-        st.session_state["settings_wd14_tagger_folder"] = saved_settings.get("wd14_tagger_folder", DEFAULT_WD14_TAGGER_PATH)
-
-    if "settings_output_folder" not in st.session_state:
-        st.session_state["settings_output_folder"] = saved_settings.get("output_folder", DEFAULT_OUTPUT_PATH)
-
-    if "settings_training_folder" not in st.session_state:
-        st.session_state["settings_training_folder"] = saved_settings.get("training_folder", DEFAULT_TRAINING_PATH)
-
-    # Initialiseer modelmappen
-    for key in COMFY_FOLDERS:
-        session_key = f"settings_{key}"
-        if session_key not in st.session_state:
-            saved_val = saved_settings.get(key, "")
-            if not saved_val and st.session_state["root_folder"]:
-                saved_val = os.path.normpath(os.path.join(st.session_state["root_folder"], COMFY_FOLDERS[key]))
-            st.session_state[session_key] = saved_val
-
-    # Invoer Root Folder
-    st.text_input(
-        "Root Folder",
-        key="root_folder",
-        on_change=sync_paths_from_root
+    st.title("⚙️ Settings & Configuration")
+    st.write("Configure the base directories for your datasets, training outputs, and models.")
+    
+    # Load current settings into session state
+    if "app_settings" not in st.session_state:
+        st.session_state.app_settings = load_settings()
+        
+    settings = st.session_state.app_settings
+    
+    # ---------------------------------------------------------
+    # 1. ROOT WORKSPACE
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.subheader("📂 Root Workspace Directory")
+    st.caption("This is the main folder for your project. All other directories will be created inside it by default.")
+    
+    root_folder = st.text_input(
+        "Root Folder Path",
+        value=settings.get("root_folder", ""),
+        key="root_folder_input",
+        help="Select the main directory for your YOLO/Vision project."
     )
+    
+    if st.button("🔄 Auto-Generate Paths from Root", use_container_width=True):
+        if root_folder and os.path.exists(root_folder):
+            new_paths = sync_paths_from_root(root_folder)
+            st.session_state.app_settings.update(new_paths)
+            st.toast("Paths updated from root!", icon="🔄")
+            st.rerun()
+        else:
+            st.warning("Please enter a valid, existing root folder path.")
 
-    # Opslaan-knop direct onder Root Folder
-    if st.button("Save Settings", type="primary", use_container_width=True):
-        if st.session_state.get("root_folder"):
-            sync_paths_from_root()
-
-        settings_dict = {
-            "root_folder": st.session_state.get("root_folder", ""),
-            "datasets_folder": st.session_state.get("settings_datasets_folder", DEFAULT_DATASETS_PATH),
-            "wd14_tagger_folder": st.session_state.get("settings_wd14_tagger_folder", DEFAULT_WD14_TAGGER_PATH),
-            "output_folder": st.session_state.get("settings_output_folder", DEFAULT_OUTPUT_PATH),
-            "training_folder": st.session_state.get("settings_training_folder", DEFAULT_TRAINING_PATH),
-        }
-        for key in COMFY_FOLDERS:
-            settings_dict[key] = st.session_state.get(f"settings_{key}", "")
-
-        save_settings(settings_dict)
-
-    st.divider()
-
-    st.subheader("App Working Directories")
-    col1, col2, col3, col4 = st.columns(4)
+    # ---------------------------------------------------------
+    # 2. WORKSPACE DIRECTORIES
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.subheader("🗂️ Workspace Directories")
+    
+    col1, col2 = st.columns(2)
     with col1:
-        st.text_input(
-            "Datasets Folder Path",
-            key="settings_datasets_folder",
-            help="Standaard pad voor dataset opslag"
+        datasets_folder = st.text_input(
+            "Datasets Folder",
+            value=settings.get("datasets_folder", ""),
+            key="datasets_folder_input",
+            help="Where raw images, annotations, and tagged datasets are stored."
         )
+        st.session_state.app_settings["datasets_folder"] = datasets_folder
+        
+        training_folder = st.text_input(
+            "Training Folder",
+            value=settings.get("training_folder", ""),
+            key="training_folder_input",
+            help="Where YOLO training runs, logs, and weights are saved."
+        )
+        st.session_state.app_settings["training_folder"] = training_folder
 
     with col2:
-        st.text_input(
-            "WD14 Tagger Folder Path",
-            key="settings_wd14_tagger_folder",
-            help="Standaard dataset pad gebruikt door de WD14 Tagger"
+        output_folder = st.text_input(
+            "Output Folder",
+            value=settings.get("output_folder", ""),
+            key="output_folder_input",
+            help="General output folder for exports, predictions, etc."
         )
+        st.session_state.app_settings["output_folder"] = output_folder
 
+    # ---------------------------------------------------------
+    # 3. MODEL DIRECTORIES
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.subheader("🧠 Model Directories")
+    st.caption("Directories for storing downloaded AI models (Ultralytics YOLO, Vision-Language models, etc.).")
+    
+    col3, col4 = st.columns(2)
     with col3:
-        st.text_input(
-            "Output Folder Path",
-            key="settings_output_folder",
-            help="Standaard pad: AI-Fitness/output"
+        models_folder = st.text_input(
+            "General Models Folder",
+            value=settings.get("models_folder", ""),
+            key="models_folder_input"
         )
+        st.session_state.app_settings["models_folder"] = models_folder
+        
+        ultralytics_folder = st.text_input(
+            "Ultralytics (YOLO) Models",
+            value=settings.get("ultralytics_models_folder", ""),
+            key="ultralytics_folder_input",
+            help="Folder for YOLO .pt weights."
+        )
+        st.session_state.app_settings["ultralytics_models_folder"] = ultralytics_folder
 
     with col4:
-        st.text_input(
-            "Training Folder Path",
-            key="settings_training_folder",
-            help="Standaard pad: AI-Fitness/training"
+        vision_folder = st.text_input(
+            "Vision Models (BLIP, CLIP, Florence, WD14)",
+            value=settings.get("vision_models_folder", ""),
+            key="vision_folder_input",
+            help="Folder for HuggingFace vision models and WD14 ONNX files."
         )
+        st.session_state.app_settings["vision_models_folder"] = vision_folder
 
-    st.divider()
-
-    st.subheader("Model Directory Paths")
-    for key in COMFY_FOLDERS:
-        label = key.replace("_", " ").title()
-        st.text_input(label, key=f"settings_{key}")
-
-def load_settings():
-    """Laadt settings.json vanuit de root/user map."""
-    if SETTINGS_FILE.exists():
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            st.error(f"Fout bij het lezen van settings.json: {e}")
-    return {}
-
-def sync_paths_from_root():
-    """Berekent en werkt paden in de session state bij op basis van de hoofdmap."""
-    root = st.session_state.get("root_folder", "").strip()
-    if not root:
-        return
-
-    for key, subfolder in COMFY_FOLDERS.items():
-        session_key = f"settings_{key}"
-        st.session_state[session_key] = os.path.normpath(os.path.join(root, subfolder))
-
-def save_settings(settings_dict):
-    """Slaat settings_dict op naar root/user/settings.json."""
-    try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(settings_dict, f, indent=4)
-        st.toast("Applicatie-instellingen bijgewerkt.", icon="⚙")
-        st.success("Instellingen succesvol opgeslagen!")
-    except Exception as e:
-        st.error(f"Fout bij het opslaan van instellingen: {e}")
-
+    # ---------------------------------------------------------
+    # ACTIONS
+    # ---------------------------------------------------------
+    st.markdown("---")
+    
+    col_save, col_create = st.columns([1, 1])
+    with col_save:
+        if st.button("💾 Save Settings", type="primary", use_container_width=True):
+            success, msg = save_settings(st.session_state.app_settings)
+            if success:
+                st.success(msg)
+                st.toast("Settings saved to JSON!", icon="💾")
+            else:
+                st.error(msg)
+                
+    with col_create:
+        if st.button("📁 Create Missing Folders", use_container_width=True):
+            created = []
+            for key, path in st.session_state.app_settings.items():
+                if key != "root_folder" and path and not os.path.exists(path):
+                    try:
+                        os.makedirs(path, exist_ok=True)
+                        created.append(os.path.basename(path))
+                    except Exception as e:
+                        st.error(f"Failed to create {path}: {e}")
+            if created:
+                st.success(f"Created folders: {', '.join(created)}")
+            else:
+                st.info("All folders already exist.")
 
 if __name__ == "__main__":
     render_settings_tab()

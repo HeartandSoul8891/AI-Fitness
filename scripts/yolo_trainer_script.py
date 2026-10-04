@@ -1,3 +1,4 @@
+
 import json
 import os
 import sys
@@ -5,74 +6,86 @@ from pathlib import Path
 import torch
 from ultralytics import YOLO
 
-# Resolve Project Root dynamically
+# ==========================================
+# PATH RESOLUTION
+# ==========================================
 FILE_PATH = Path(__file__).resolve()
-PROJECT_ROOT = FILE_PATH.parent.parent.parent if FILE_PATH.parent.name == "scripts" else FILE_PATH.parent.parent
+PROJECT_ROOT = FILE_PATH.parent.parent if FILE_PATH.parent.name == "scripts" else FILE_PATH.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# ==========================================
+# DEFAULT MODELS & SETTINGS
+# ==========================================
 TASK_BASE_MODELS = {
-    "bbox": "yolo11n.pt",
-    "segm": "yolo11n-seg.pt",
-    "obb": "yolo11n-obb.pt",
-    "pose": "yolo11n-pose.pt",
-    "cls": "yolo11n-cls.pt",
-    "dept": "yolo11n.pt"
+    "bbox": "yolo26n.pt",
+    "segm": "yolo26n-seg.pt",
+    "obb": "yolo26n-obb.pt",
+    "pose": "yolo26n-pose.pt",
+    "cls": "yolo26n-cls.pt",
+    "dept": "yolo26n.pt" 
 }
 
-def load_settings():
+def load_settings() -> dict:
+    """Loads the unified settings.json."""
     settings_file = PROJECT_ROOT / "user" / "settings.json"
     if settings_file.exists():
         try:
             with open(settings_file, "r", encoding="utf-8") as f:
                 raw_settings = json.load(f)
-            return {str(k).strip(): (v.strip() if isinstance(v, str) else v) for k, v in raw_settings.items()}
+                return {str(k).strip(): (v.strip() if isinstance(v, str) else v) for k, v in raw_settings.items()}
         except Exception:
             pass
     return {}
 
-def resolve_model_save_dir(task_type):
+def resolve_model_save_dir() -> Path:
+    """Determines where training outputs and weights are saved."""
     settings = load_settings()
-    folder_key = f"ultralytics_{task_type}_folder"
-    configured_dir = settings.get(folder_key)
-    if configured_dir and os.path.exists(configured_dir):
-        target_dir = Path(configured_dir)
-    else:
-        target_dir = PROJECT_ROOT / "output" / "models" / task_type
-    target_dir.mkdir(parents=True, exist_ok=True)
-    return target_dir
+    # Use the unified training_folder or ultralytics_models_folder
+    target_dir = settings.get("training_folder") or settings.get("ultralytics_models_folder")
+    
+    if not target_dir or not os.path.exists(target_dir):
+        target_dir = PROJECT_ROOT / "training"
+        os.makedirs(target_dir, exist_ok=True)
+        
+    return Path(target_dir)
 
-def get_device_config(device_selection="auto"):
+def get_device_config(device_selection: str = "auto"):
+    """Resolves compute device."""
     if device_selection == "cpu":
         return "cpu"
-    if device_selection == "gpu" or device_selection == "auto":
+    if device_selection in ["gpu", "auto"]:
         if torch.cuda.is_available():
             return 0
-        # Add ROCm/MPS checks here if needed
+        # Add MPS/ROCm checks here if needed in the future
     return "cpu"
 
+# ==========================================
+# CORE TRAINING ENGINE
+# ==========================================
 def start_yolo_training(
-    task_type, 
-    dataset_path, 
-    model_weights=None, 
-    project_name="yolo_experiments", 
-    run_name="train_run",
-    device="auto", 
-    **kwargs # Captures ALL hyperparameters, augmentations, and advanced settings
+    task_type: str,
+    dataset_path: str,
+    model_weights: str = None,
+    project_name: str = "yolo_experiments",
+    run_name: str = "train_run",
+    device: str = "auto",
+    **kwargs # Captures ALL hyperparameters and augmentations from the GUI
 ):
     """Executes model training for ANY YOLO task type with full parameter support."""
-    save_dir = resolve_model_save_dir(task_type)
+    save_dir = resolve_model_save_dir()
     target_device = get_device_config(device)
-    
+
     # 1. Resolve Model Weights
     if not model_weights or not os.path.exists(model_weights):
         model_weights = TASK_BASE_MODELS.get(task_type, "yolo11n.pt")
-        
+
     # 2. Resolve Dataset Path
     if task_type != "cls":
         data_yaml = Path(dataset_path) / "data.yaml" if os.path.isdir(dataset_path) else Path(dataset_path)
         if not data_yaml.exists():
             return False, f"Missing data.yaml file at `{data_yaml}`", None
+        # Ultralytics requires forward slashes for paths
         dataset_target = str(data_yaml.resolve()).replace("\\", "/")
     else:
         dataset_target = str(Path(dataset_path).resolve()).replace("\\", "/")
@@ -87,7 +100,7 @@ def start_yolo_training(
         "save": True,
         "plots": True
     }
-    
+
     # Merge UI kwargs (epochs, batch, augmentations, etc.)
     # Filter out None values to let Ultralytics use its internal defaults
     for k, v in kwargs.items():
