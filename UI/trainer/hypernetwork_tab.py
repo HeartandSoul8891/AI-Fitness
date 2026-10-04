@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-from UI.settings_tab import load_settings, DEFAULT_DATASETS_PATH, DEFAULT_OUTPUT_PATH
+from UI.settings_gui import load_settings, DEFAULT_DATASETS_PATH, DEFAULT_OUTPUT_PATH
 
 def get_datasets_path() -> str:
     """Retrieve datasets folder from session_state, settings.json, or fallback default."""

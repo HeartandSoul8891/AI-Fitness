@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import streamlit as st
 
-from UI.settings_tab import load_settings, DEFAULT_DATASETS_PATH, DEFAULT_OUTPUT_PATH
+from UI.settings_gui import load_settings, DEFAULT_DATASETS_PATH, DEFAULT_OUTPUT_PATH
 from scripts.textual_inversion.TI_script import (
     get_hardware_report,
     train_textual_inversion,
